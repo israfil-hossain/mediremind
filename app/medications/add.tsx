@@ -442,6 +442,7 @@ export default function AddMedicationScreen() {
                   </View>
                 </View>
                 <Switch
+                  style={{marginBottom: 30}}
                   value={form.reminderEnabled}
                   onValueChange={(value) =>
                     setForm({ ...form, reminderEnabled: value })
@@ -470,6 +471,7 @@ export default function AddMedicationScreen() {
                 </View>
                 <Switch
                   value={form.refillReminder}
+                  style={{marginBottom: 30}}
                   onValueChange={(value) => {
                     setForm({ ...form, refillReminder: value });
                     if (!value) {
@@ -553,6 +555,7 @@ export default function AddMedicationScreen() {
             </View>
           </View>
         </ScrollView>
+
 
         <View style={styles.footer}>
           <TouchableOpacity
@@ -761,6 +764,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    maxWidth: "100%",
   },
   switchLabelContainer: {
     flexDirection: "row",
@@ -784,7 +788,7 @@ const styles = StyleSheet.create({
   switchSubLabel: {
     fontSize: 13,
     color: "#666",
-    marginTop: 2,
+    marginTop: 4,
   },
   inputRow: {
     flexDirection: "row",
@@ -903,5 +907,13 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: "#333",
+  },
+  adContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8f9fa",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
   },
 });
