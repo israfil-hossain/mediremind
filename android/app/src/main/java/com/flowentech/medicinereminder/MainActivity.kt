@@ -1,4 +1,4 @@
-package com.flowentech.byciclerentalapp
+package com.flowentech.medicinereminder
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

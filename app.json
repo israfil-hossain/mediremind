@@ -7,7 +7,7 @@
     "icon": "./assets/images/logo.png",
     "scheme": "medicine-reminder",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.flowentech.medicinereminder"
@@ -59,6 +59,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c14a197b-28be-4677-8095-1538f9b5a8e7"
+      }
+    },
+    "owner": "flowentech"
   }
 }

@@ -21,7 +21,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
   }
 }
 
-rootProject.name = 'bycicle-rental-app'
+rootProject.name = 'Medicine Reminder'
 
 dependencyResolutionManagement {
   versionCatalogs {
