@@ -8,16 +8,16 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
-tutorial-flow.txt
-./tutorial-flow.txt
+
 # Native
+.kotlin/
 *.orig.*
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
-*.claude
+
 # Metro
 .metro-health-check*
 
@@ -38,3 +38,7 @@ yarn-error.*
 
 app-example
 
+# generated native folders
+/ios
+/android
+node_modules
