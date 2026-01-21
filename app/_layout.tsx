@@ -1,9 +1,10 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Platform } from "react-native";
+import { RevenueCatAuthProvider } from "../providers/RevenueCatAuthProvider";
 export default function Layout() {
   return (
-    <>
+    <RevenueCatAuthProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -52,7 +53,15 @@ export default function Layout() {
             title: "",
           }}
         />
+        <Stack.Screen
+          name="premium"
+          options={{
+            headerShown: false,
+            headerBackTitle: "",
+            title: "",
+          }}
+        />
       </Stack>
-    </>
+    </RevenueCatAuthProvider>
   );
 }

@@ -18,15 +18,21 @@ import {
   updateMedication,
 } from "../../utils/storage";
 import { scheduleRefillReminder } from "../../utils/notifications";
+import { canUseRefillAlerts, isPremium } from "../../utils/subscription";
 
 export default function RefillTrackerScreen() {
   const router = useRouter();
   const [medications, setMedications] = useState<Medication[]>([]);
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
 
   const loadMedications = useCallback(async () => {
     try {
-      const allMedications = await getMedications();
+      const [allMedications, premium] = await Promise.all([
+        getMedications(),
+        isPremium(),
+      ]);
       setMedications(allMedications);
+      setIsPremiumUser(premium);
     } catch (error) {
       console.error("Error loading medications:", error);
     }
@@ -102,6 +108,28 @@ export default function RefillTrackerScreen() {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Refill Tracker</Text>
         </View>
+
+        {!isPremiumUser && (
+          <View style={styles.upgradeBanner}>
+            <View style={styles.upgradeBannerContent}>
+              <Ionicons name="notifications-outline" size={24} color="#1a8e2d" />
+              <View style={styles.upgradeBannerText}>
+                <Text style={styles.upgradeBannerTitle}>
+                  Automated Refill Alerts
+                </Text>
+                <Text style={styles.upgradeBannerDescription}>
+                  Get notified automatically when your medication supply is running low. Upgrade to Premium to enable automated alerts.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => router.push("/premium")}
+            >
+              <Text style={styles.upgradeButtonText}>Upgrade</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <ScrollView
           style={styles.medicationsContainer}
@@ -391,6 +419,47 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: "white",
+    fontWeight: "600",
+  },
+  upgradeBanner: {
+    backgroundColor: "#E8F5E9",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
+  },
+  upgradeBannerContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  upgradeBannerText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  upgradeBannerTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  upgradeBannerDescription: {
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+  },
+  upgradeButton: {
+    backgroundColor: "#1a8e2d",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  upgradeButtonText: {
+    color: "white",
+    fontSize: 14,
     fontWeight: "600",
   },
 });

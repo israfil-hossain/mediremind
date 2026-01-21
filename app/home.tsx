@@ -27,6 +27,7 @@ import {
   registerForPushNotificationsAsync,
   scheduleMedicationReminder,
 } from "../utils/notifications";
+import { getMedicationLimit, isPremium } from "../utils/subscription";
 
 const { width } = Dimensions.get("window");
 
@@ -137,16 +138,30 @@ export default function HomeScreen() {
   const [todaysMedications, setTodaysMedications] = useState<Medication[]>([]);
   const [completedDoses, setCompletedDoses] = useState(0);
   const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
+  const [medicationLimit, setMedicationLimit] = useState(5);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   const loadMedications = useCallback(async () => {
     try {
-      const [allMedications, todaysDoses] = await Promise.all([
+      const [allMedications, todaysDoses, premium, limit] = await Promise.all([
         getMedications(),
         getTodaysDoses(),
+        isPremium(),
+        getMedicationLimit(),
       ]);
 
+      setIsPremiumUser(premium);
+      setMedicationLimit(limit);
       setDoseHistory(todaysDoses);
       setMedications(allMedications);
+
+      // Show upgrade prompt if user has 3+ medications and is not premium
+      if (allMedications.length >= 3 && !premium && limit !== Infinity) {
+        setShowUpgradePrompt(true);
+      } else {
+        setShowUpgradePrompt(false);
+      }
 
       // Filter medications for today
       const today = new Date();
@@ -301,6 +316,34 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
+
+        {showUpgradePrompt && (
+          <View style={styles.upgradePrompt}>
+            <View style={styles.upgradePromptContent}>
+              <Ionicons name="star" size={24} color="#FF9800" />
+              <View style={styles.upgradePromptText}>
+                <Text style={styles.upgradePromptTitle}>
+                  Unlock Unlimited Medications
+                </Text>
+                <Text style={styles.upgradePromptDescription}>
+                  You've added {medications.length} medications. Upgrade to Premium for unlimited medications and advanced features.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.upgradePromptClose}
+                onPress={() => setShowUpgradePrompt(false)}
+              >
+                <Ionicons name="close" size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.upgradePromptButton}
+              onPress={() => router.push("/premium")}
+            >
+              <Text style={styles.upgradePromptButtonText}>Upgrade to Premium</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -720,5 +763,50 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
     marginLeft: 4,
+  },
+  upgradePrompt: {
+    backgroundColor: "#FFF3E0",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#FFE0B2",
+  },
+  upgradePromptContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  upgradePromptText: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  upgradePromptTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  upgradePromptDescription: {
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+  },
+  upgradePromptClose: {
+    padding: 4,
+  },
+  upgradePromptButton: {
+    backgroundColor: "#FF9800",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  upgradePromptButtonText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

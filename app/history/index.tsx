@@ -19,6 +19,7 @@ import {
   Medication,
   clearAllData,
 } from "../../utils/storage";
+import { getHistoryLimitDays, isPremium } from "../../utils/subscription";
 
 type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
 
@@ -28,13 +29,20 @@ export default function HistoryScreen() {
   const [selectedFilter, setSelectedFilter] = useState<
     "all" | "taken" | "missed"
   >("all");
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
+  const [historyLimitDays, setHistoryLimitDays] = useState(30);
 
   const loadHistory = useCallback(async () => {
     try {
-      const [doseHistory, medications] = await Promise.all([
+      const [doseHistory, medications, premium, limitDays] = await Promise.all([
         getDoseHistory(),
         getMedications(),
+        isPremium(),
+        getHistoryLimitDays(),
       ]);
+
+      setIsPremiumUser(premium);
+      setHistoryLimitDays(limitDays);
 
       // Combine history with medication details
       const enrichedHistory = doseHistory.map((dose) => ({
@@ -181,6 +189,28 @@ export default function HistoryScreen() {
             </TouchableOpacity>
           </ScrollView>
         </View>
+
+        {!isPremiumUser && historyLimitDays !== Infinity && (
+          <View style={styles.upgradeBanner}>
+            <View style={styles.upgradeBannerContent}>
+              <Ionicons name="time-outline" size={24} color="#1a8e2d" />
+              <View style={styles.upgradeBannerText}>
+                <Text style={styles.upgradeBannerTitle}>
+                  View Full History
+                </Text>
+                <Text style={styles.upgradeBannerDescription}>
+                  Free version shows last {historyLimitDays} days. Upgrade to Premium for unlimited history.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => router.push("/premium")}
+            >
+              <Text style={styles.upgradeButtonText}>Upgrade</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <ScrollView
           style={styles.historyContainer}
@@ -433,5 +463,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 8,
+  },
+  upgradeBanner: {
+    backgroundColor: "#E8F5E9",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#C8E6C9",
+  },
+  upgradeBannerContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  upgradeBannerText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  upgradeBannerTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  upgradeBannerDescription: {
+    fontSize: 14,
+    color: "#666",
+    lineHeight: 20,
+  },
+  upgradeButton: {
+    backgroundColor: "#1a8e2d",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  upgradeButtonText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

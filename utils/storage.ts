@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { canAddMedication, getHistoryLimitDays } from "./subscription";
 
 const MEDICATIONS_KEY = "@medications";
 const DOSE_HISTORY_KEY = "@dose_history";
@@ -39,6 +40,10 @@ export async function getMedications(): Promise<Medication[]> {
 export async function addMedication(medication: Medication): Promise<void> {
   try {
     const medications = await getMedications();
+    const canAdd = await canAddMedication(medications.length);
+    if (!canAdd) {
+      throw new Error("MEDICATION_LIMIT_REACHED");
+    }
     medications.push(medication);
     await AsyncStorage.setItem(MEDICATIONS_KEY, JSON.stringify(medications));
   } catch (error) {
@@ -82,7 +87,20 @@ export async function deleteMedication(id: string): Promise<void> {
 export async function getDoseHistory(): Promise<DoseHistory[]> {
   try {
     const data = await AsyncStorage.getItem(DOSE_HISTORY_KEY);
-    return data ? JSON.parse(data) : [];
+    const allHistory: DoseHistory[] = data ? JSON.parse(data) : [];
+    
+    // Apply free tier history limit
+    const limitDays = await getHistoryLimitDays();
+    if (limitDays === Infinity) {
+      return allHistory;
+    }
+    
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - limitDays);
+    
+    return allHistory.filter(
+      (dose) => new Date(dose.timestamp) >= cutoffDate
+    );
   } catch (error) {
     console.error("Error getting dose history:", error);
     return [];

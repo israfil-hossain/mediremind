@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,11 +17,12 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { addMedication } from "../../utils/storage";
+import { addMedication, getMedications } from "../../utils/storage";
 import {
   scheduleMedicationReminder,
   scheduleRefillReminder,
 } from "../../utils/notifications";
+import { canAddMedication, canUseRefillAlerts, getMedicationLimit } from "../../utils/subscription";
 
 const { width } = Dimensions.get("window");
 
@@ -83,6 +84,21 @@ export default function AddMedicationScreen() {
   const [selectedFrequency, setSelectedFrequency] = useState("");
   const [selectedDuration, setSelectedDuration] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [medicationCount, setMedicationCount] = useState(0);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+
+  useEffect(() => {
+    loadMedicationCount();
+  }, []);
+
+  const loadMedicationCount = async () => {
+    try {
+      const medications = await getMedications();
+      setMedicationCount(medications.length);
+    } catch (error) {
+      console.error("Error loading medication count:", error);
+    }
+  };
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -144,6 +160,77 @@ export default function AddMedicationScreen() {
         color: randomColor,
       };
 
+      // Check medication limit before adding
+      const canAdd = await canAddMedication(medicationCount);
+      if (!canAdd) {
+        const limit = await getMedicationLimit();
+        Alert.alert(
+          "Medication Limit Reached",
+          `Free version allows up to ${limit} medications. Upgrade to Premium for unlimited medications.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Upgrade to Premium",
+              onPress: () => router.push("/premium"),
+            },
+          ]
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Check if refill alerts are available
+      const canUseRefill = await canUseRefillAlerts();
+      if (medicationData.refillReminder && !canUseRefill) {
+        Alert.alert(
+          "Premium Feature",
+          "Automated refill alerts are available in Premium. You can still track refills manually.",
+          [
+            { text: "Continue Without Alerts", onPress: async () => {
+              medicationData.refillReminder = false;
+              await proceedWithSave(medicationData);
+            }},
+            {
+              text: "Upgrade to Premium",
+              onPress: () => router.push("/premium"),
+            },
+          ]
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      await proceedWithSave(medicationData);
+    } catch (error: any) {
+      console.error("Save error:", error);
+      if (error.message === "MEDICATION_LIMIT_REACHED") {
+        const limit = await getMedicationLimit();
+        Alert.alert(
+          "Medication Limit Reached",
+          `Free version allows up to ${limit} medications. Upgrade to Premium for unlimited medications.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Upgrade to Premium",
+              onPress: () => router.push("/premium"),
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Error",
+          "Failed to save medication. Please try again.",
+          [{ text: "OK" }],
+          { cancelable: false }
+        );
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const proceedWithSave = async (medicationData: any) => {
+    try {
       await addMedication(medicationData);
 
       // Schedule reminders if enabled
@@ -151,8 +238,13 @@ export default function AddMedicationScreen() {
         await scheduleMedicationReminder(medicationData);
       }
       if (medicationData.refillReminder) {
-        await scheduleRefillReminder(medicationData);
+        const canUseRefill = await canUseRefillAlerts();
+        if (canUseRefill) {
+          await scheduleRefillReminder(medicationData);
+        }
       }
+
+      await loadMedicationCount();
 
       Alert.alert(
         "Success",
@@ -166,15 +258,8 @@ export default function AddMedicationScreen() {
         { cancelable: false }
       );
     } catch (error) {
-      console.error("Save error:", error);
-      Alert.alert(
-        "Error",
-        "Failed to save medication. Please try again.",
-        [{ text: "OK" }],
-        { cancelable: false }
-      );
-    } finally {
-      setIsSubmitting(false);
+      console.error("Error in proceedWithSave:", error);
+      throw error;
     }
   };
 
@@ -294,7 +379,14 @@ export default function AddMedicationScreen() {
           >
             <Ionicons name="chevron-back" size={28} color="#1a8e2d" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>New Medication</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>New Medication</Text>
+            {medicationCount > 0 && (
+              <Text style={styles.medicationCount}>
+                {medicationCount} medication{medicationCount !== 1 ? "s" : ""} added
+              </Text>
+            )}
+          </View>
         </View>
 
         <ScrollView
@@ -462,17 +554,43 @@ export default function AddMedicationScreen() {
                   <View style={styles.iconContainer}>
                     <Ionicons name="reload" size={20} color="#1a8e2d" />
                   </View>
-                  <View>
-                    <Text style={styles.switchLabel}>Refill Tracking</Text>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <Text style={styles.switchLabel}>Refill Tracking</Text>
+                      {!form.refillReminder && (
+                        <View style={styles.premiumBadge}>
+                          <Text style={styles.premiumBadgeText}>Premium</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.switchSubLabel}>
-                      Get notified when you need to refill
+                      {form.refillReminder
+                        ? "Get notified when you need to refill"
+                        : "Automated refill alerts (Premium feature)"}
                     </Text>
                   </View>
                 </View>
                 <Switch
                   value={form.refillReminder}
                   style={{marginBottom: 30}}
-                  onValueChange={(value) => {
+                  onValueChange={async (value) => {
+                    if (value) {
+                      const canUseRefill = await canUseRefillAlerts();
+                      if (!canUseRefill) {
+                        Alert.alert(
+                          "Premium Feature",
+                          "Automated refill alerts are available in Premium. Upgrade to get notified when your medication supply is running low.",
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                              text: "Upgrade to Premium",
+                              onPress: () => router.push("/premium"),
+                            },
+                          ]
+                        );
+                        return;
+                      }
+                    }
                     setForm({ ...form, refillReminder: value });
                     if (!value) {
                       setErrors({
@@ -631,6 +749,24 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "white",
     marginLeft: 15,
+  },
+  medicationCount: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.8)",
+    marginLeft: 15,
+    marginTop: 2,
+  },
+  premiumBadge: {
+    backgroundColor: "#FF9800",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  premiumBadgeText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "700",
   },
   formContainer: {
     flex: 1,
