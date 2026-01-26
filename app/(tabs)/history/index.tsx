@@ -18,8 +18,8 @@ import {
   DoseHistory,
   Medication,
   clearAllData,
-} from "../../utils/storage";
-import { getHistoryLimitDays, isPremium } from "../../utils/subscription";
+} from "../../../utils/storage";
+import { getHistoryLimitDays, isPremium } from "../../../utils/subscription";
 
 type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
 

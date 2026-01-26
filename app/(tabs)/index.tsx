@@ -7,27 +7,30 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
-  Modal,
   Alert,
   AppState,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
+import PremiumModal from "../../components/PremiumModal";
 import {
   getMedications,
   Medication,
   getTodaysDoses,
   recordDose,
   DoseHistory,
-} from "../utils/storage";
+} from "../../utils/storage";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   registerForPushNotificationsAsync,
   scheduleMedicationReminder,
-} from "../utils/notifications";
-import { getMedicationLimit, isPremium } from "../utils/subscription";
+} from "../../utils/notifications";
+import { getMedicationLimit, isPremium } from "../../utils/subscription";
+import { getCurrentUser } from "../../utils/firebase";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -43,25 +46,25 @@ const QUICK_ACTIONS = [
     gradient: ["#4CAF50", "#2E7D32"] as [string, string],
   },
   {
+    icon: "document-text-outline" as const,
+    label: "Prescription\nHistory",
+    route: "/(tabs)/prescriptions" as const,
+    color: "#5E35B1",
+    gradient: ["#7C4DFF", "#5E35B1"] as [string, string],
+  },
+  {
     icon: "calendar-outline" as const,
     label: "Calendar\nView",
-    route: "/calendar" as const,
+    route: "/(tabs)/calendar" as const,
     color: "#1976D2",
     gradient: ["#2196F3", "#1976D2"] as [string, string],
   },
   {
     icon: "time-outline" as const,
     label: "History\nLog",
-    route: "/history" as const,
+    route: "/(tabs)/history" as const,
     color: "#C2185B",
     gradient: ["#E91E63", "#C2185B"] as [string, string],
-  },
-  {
-    icon: "medical-outline" as const,
-    label: "Refill\nTracker",
-    route: "/refills" as const,
-    color: "#E64A19",
-    gradient: ["#FF5722", "#E64A19"] as [string, string],
   },
 ];
 
@@ -69,12 +72,14 @@ interface CircularProgressProps {
   progress: number;
   totalDoses: number;
   completedDoses: number;
+  styles: any;
 }
 
 function CircularProgress({
   progress,
   totalDoses,
   completedDoses,
+  styles,
 }: CircularProgressProps) {
   const animatedValue = useRef(new Animated.Value(0)).current;
   const size = width * 0.55;
@@ -132,7 +137,9 @@ function CircularProgress({
 }
 
 export default function HomeScreen() {
+  const { theme } = useTheme();
   const router = useRouter();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [todaysMedications, setTodaysMedications] = useState<Medication[]>([]);
@@ -141,6 +148,25 @@ export default function HomeScreen() {
   const [isPremiumUser, setIsPremiumUser] = useState(false);
   const [medicationLimit, setMedicationLimit] = useState(5);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user) {
+          router.replace("/auth");
+          return;
+        }
+      } catch (error) {
+        console.error("Auth check error:", error);
+        router.replace("/auth");
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, []);
 
   const loadMedications = useCallback(async () => {
     try {
@@ -263,9 +289,21 @@ export default function HomeScreen() {
       ? completedDoses / (todaysMedications.length * 2)
       : 0;
 
+  const styles = createStyles(theme);
+
+  // Show loading while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={["#1a8e2d", "#146922"]} style={styles.header}>
+      <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
             <View style={styles.flex1}>
@@ -284,11 +322,18 @@ export default function HomeScreen() {
                 </View>
               )}
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => router.push("/(tabs)/profile")}
+            >
+              <Ionicons name="person-circle-outline" size={24} color="white" />
+            </TouchableOpacity>
           </View>
           <CircularProgress
             progress={progress}
             totalDoses={todaysMedications.length * 2}
             completedDoses={completedDoses}
+            styles={styles}
           />
         </View>
       </LinearGradient>
@@ -320,7 +365,7 @@ export default function HomeScreen() {
         {showUpgradePrompt && (
           <View style={styles.upgradePrompt}>
             <View style={styles.upgradePromptContent}>
-              <Ionicons name="star" size={24} color="#FF9800" />
+              <Ionicons name="star" size={24} color={theme.colors.warning} />
               <View style={styles.upgradePromptText}>
                 <Text style={styles.upgradePromptTitle}>
                   Unlock Unlimited Medications
@@ -333,7 +378,7 @@ export default function HomeScreen() {
                 style={styles.upgradePromptClose}
                 onPress={() => setShowUpgradePrompt(false)}
               >
-                <Ionicons name="close" size={20} color="#666" />
+                <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -348,7 +393,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Today's Schedule</Text>
-            <Link href="/calendar" asChild>
+            <Link href="/(tabs)/calendar" asChild>
               <TouchableOpacity>
                 <Text style={styles.seeAllButton}>See All</Text>
               </TouchableOpacity>
@@ -356,7 +401,7 @@ export default function HomeScreen() {
           </View>
           {todaysMedications.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="medical-outline" size={48} color="#ccc" />
+              <Ionicons name="medical-outline" size={48} color={theme.colors.borderLight} />
               <Text style={styles.emptyStateText}>
                 No medications scheduled for today
               </Text>
@@ -391,7 +436,7 @@ export default function HomeScreen() {
                       <Text style={styles.dosageInfo}>{medication.dosage}</Text>
                     </View>
                     <View style={styles.doseTime}>
-                      <Ionicons name="time-outline" size={16} color="#666" />
+                      <Ionicons name="time-outline" size={16} color={theme.colors.textSecondary} />
                       <Text style={styles.timeText}>{medication.times[0]}</Text>
                     </View>
                   </View>
@@ -400,7 +445,7 @@ export default function HomeScreen() {
                       <Ionicons
                         name="checkmark-circle"
                         size={20}
-                        color="#4CAF50"
+                        color={theme.colors.success}
                       />
                       <Text style={styles.takenText}>Taken</Text>
                     </View>
@@ -422,26 +467,28 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <Modal
+      <PremiumModal
         visible={showNotifications}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowNotifications(false)}
+        onClose={() => setShowNotifications(false)}
+        title="Today's Medications"
+        subtitle={`${todaysMedications.length} medication${todaysMedications.length !== 1 ? 's' : ''} scheduled`}
+        headerIcon="notifications"
+        size="medium"
+        scrollable={true}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Notifications</Text>
-              <TouchableOpacity
-                onPress={() => setShowNotifications(false)}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
+        <View style={styles.notificationsList}>
+          {todaysMedications.length === 0 ? (
+            <View style={styles.emptyNotifications}>
+              <Ionicons name="checkmark-circle-outline" size={64} color={theme.colors.success} />
+              <Text style={styles.emptyNotificationsTitle}>All Clear!</Text>
+              <Text style={styles.emptyNotificationsText}>
+                No medications scheduled for today
+              </Text>
             </View>
-            {todaysMedications.map((medication) => (
+          ) : (
+            todaysMedications.map((medication) => (
               <View key={medication.id} style={styles.notificationItem}>
-                <View style={styles.notificationIcon}>
+                <View style={[styles.notificationIcon, { backgroundColor: `${medication.color}15` }]}>
                   <Ionicons name="medical" size={24} color={medication.color} />
                 </View>
                 <View style={styles.notificationContent}>
@@ -451,23 +498,48 @@ export default function HomeScreen() {
                   <Text style={styles.notificationMessage}>
                     {medication.dosage}
                   </Text>
-                  <Text style={styles.notificationTime}>
-                    {medication.times[0]}
-                  </Text>
+                  <View style={styles.notificationTimeContainer}>
+                    <Ionicons name="time-outline" size={14} color={theme.colors.textTertiary} />
+                    <Text style={styles.notificationTime}>
+                      {medication.times[0]}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.notificationBadgeContainer}>
+                  {isDoseTaken(medication.id) ? (
+                    <View style={styles.takenBadgeSmall}>
+                      <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
+                    </View>
+                  ) : (
+                    <View style={styles.pendingBadge}>
+                      <Ionicons name="ellipse" size={12} color={theme.colors.warning} />
+                    </View>
+                  )}
                 </View>
               </View>
-            ))}
-          </View>
+            ))
+          )}
         </View>
-      </Modal>
+      </PremiumModal>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: theme.colors.background,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.colors.textSecondary,
   },
   header: {
     paddingTop: 50,
@@ -545,21 +617,21 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: theme.colors.text,
     marginBottom: 5,
   },
   seeAllButton: {
-    color: "#2E7D32",
+    color: theme.colors.primary,
     fontWeight: "600",
   },
   doseCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -580,12 +652,12 @@ const styles = StyleSheet.create({
   medicineName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   dosageInfo: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   doseTime: {
@@ -594,7 +666,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     marginLeft: 5,
-    color: "#666",
+    color: theme.colors.textSecondary,
     fontSize: 14,
   },
   takeDoseButton: {
@@ -646,14 +718,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -4,
-    backgroundColor: "#FF5252",
+    backgroundColor: theme.colors.error,
     minWidth: 20,
     height: 20,
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#146922",
+    borderColor: theme.colors.primaryDark,
     paddingHorizontal: 4,
   },
   notificationCount: {
@@ -666,81 +738,107 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: 4,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
+  notificationsList: {
+    gap: 12,
   },
-  modalContent: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: "80%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  emptyNotifications: {
     alignItems: "center",
-    marginBottom: 20,
+    paddingVertical: 40,
   },
-  modalTitle: {
+  emptyNotificationsTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+    fontWeight: "700",
+    color: theme.colors.text,
+    marginTop: 16,
+    marginBottom: 8,
   },
-  closeButton: {
-    padding: 5,
+  emptyNotificationsText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    textAlign: "center",
   },
   notificationItem: {
     flexDirection: "row",
-    padding: 15,
-    borderRadius: 12,
-    backgroundColor: "#f5f5f5",
-    marginBottom: 10,
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   notificationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#E8F5E9",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 15,
+    marginRight: 12,
   },
   notificationContent: {
     flex: 1,
   },
   notificationTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
+    fontWeight: "700",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   notificationMessage: {
     fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
+    color: theme.colors.textSecondary,
+    marginBottom: 6,
+  },
+  notificationTimeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   notificationTime: {
-    fontSize: 12,
-    color: "#999",
+    fontSize: 13,
+    color: theme.colors.textTertiary,
+  },
+  notificationBadgeContainer: {
+    marginLeft: 8,
+  },
+  takenBadgeSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.isDark ? "rgba(76, 175, 80, 0.2)" : "#E8F5E9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pendingBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.isDark ? "rgba(255, 152, 0, 0.2)" : "#FFF3E0",
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyState: {
     alignItems: "center",
     padding: 30,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     marginTop: 10,
   },
   emptyStateText: {
     fontSize: 16,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 10,
     marginBottom: 20,
   },
   addMedicationButton: {
-    backgroundColor: "#1a8e2d",
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -752,26 +850,26 @@ const styles = StyleSheet.create({
   takenBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E8F5E9",
+    backgroundColor: theme.isDark ? "rgba(76, 175, 80, 0.2)" : "#E8F5E9",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
     marginLeft: 10,
   },
   takenText: {
-    color: "#4CAF50",
+    color: theme.colors.success,
     fontWeight: "600",
     fontSize: 14,
     marginLeft: 4,
   },
   upgradePrompt: {
-    backgroundColor: "#FFF3E0",
+    backgroundColor: theme.isDark ? "rgba(255, 152, 0, 0.15)" : "#FFF3E0",
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#FFE0B2",
+    borderColor: theme.isDark ? "rgba(255, 152, 0, 0.3)" : "#FFE0B2",
   },
   upgradePromptContent: {
     flexDirection: "row",
@@ -786,19 +884,19 @@ const styles = StyleSheet.create({
   upgradePromptTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   upgradePromptDescription: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
   upgradePromptClose: {
     padding: 4,
   },
   upgradePromptButton: {
-    backgroundColor: "#FF9800",
+    backgroundColor: theme.colors.warning,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,

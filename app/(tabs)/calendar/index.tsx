@@ -16,7 +16,7 @@ import {
   recordDose,
   Medication,
   DoseHistory,
-} from "../../utils/storage";
+} from "../../../utils/storage";
 import { useFocusEffect } from "@react-navigation/native";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

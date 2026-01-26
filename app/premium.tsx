@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import PurchasesUI from "react-native-purchases-ui";
 import { useRevenueCat } from "../hooks/useRevenueCat";
+import { isTestMode, isRunningInExpoGo } from "../utils/revenuecat";
 
 const { width } = Dimensions.get("window");
 
@@ -86,23 +87,76 @@ const FAMILY_CARE_FEATURES = [
 export default function PremiumScreen() {
   const router = useRouter();
   const [subscriptionType, setSubscriptionType] = useState<"premium" | "family">("premium");
-  const { isPro, loading } = useRevenueCat();
+  const { isPro, loading, offerings } = useRevenueCat();
   const [paywallLoading, setPaywallLoading] = useState(false);
 
   const features = subscriptionType === "premium" ? PREMIUM_FEATURES : FAMILY_CARE_FEATURES;
+  const hasOfferings = offerings && offerings.availablePackages && offerings.availablePackages.length > 0;
 
   const presentPaywall = async () => {
     try {
       setPaywallLoading(true);
-      const result = await PurchasesUI.presentPaywall({ offeringIdentifier: "default" });
+      console.log("Opening RevenueCat paywall...");
+
+      const result = await PurchasesUI.presentPaywall();
+      console.log("Paywall result:", result);
+
+      // Check if paywall was not presented (Preview API mode)
+      if (result === "NOT_PRESENTED") {
+        const isExpoGo = isRunningInExpoGo();
+
+        Alert.alert(
+          isExpoGo ? "Expo Go Limitation" : "Development Mode",
+          isExpoGo
+            ? "Paywall UI is not available in Expo Go.\n\n" +
+              "To test subscriptions:\n" +
+              "1. Create a development build: npx expo run:android\n" +
+              "2. Or wait until production deployment\n\n" +
+              "RevenueCat requires native code which Expo Go doesn't support."
+            : "RevenueCat is running in test mode. The paywall cannot be displayed.\n\n" +
+              "To enable subscriptions:\n" +
+              "1. Configure products in RevenueCat Dashboard\n" +
+              "2. Create an offering named 'default'\n" +
+              "3. Add subscription products to the offering",
+          [
+            { text: "OK" }
+          ]
+        );
+        return;
+      }
+
       if (result?.customerInfo?.entitlements.active["flowentech Premium"]) {
         Alert.alert("Welcome!", "Your Premium access is now active.");
         router.back();
+      } else {
+        console.log("Paywall closed without purchase");
       }
     } catch (e: any) {
-      if (e.code === "PURCHASE_CANCELLED") return;
-      console.warn("Paywall error", e);
-      Alert.alert("Purchase error", "We couldn’t complete the purchase. Please try again.");
+      console.error("Paywall error:", e);
+
+      if (e.code === "PURCHASE_CANCELLED") {
+        console.log("User cancelled purchase");
+        return;
+      }
+
+      // Show more detailed error to help debug
+      let errorMessage = "We couldn't open the purchase screen.";
+
+      if (e.message?.includes("offering") || e.message?.includes("not found")) {
+        errorMessage = "No subscription plans are currently available. Please contact support.";
+      } else if (e.message?.includes("network") || e.message?.includes("connection")) {
+        errorMessage = "Network error. Please check your internet connection and try again.";
+      } else if (e.code === "CONFIGURATION_ERROR") {
+        errorMessage = "Subscription service is not configured. Please contact support.";
+      }
+
+      Alert.alert(
+        "Cannot Open Purchase Screen",
+        `${errorMessage}\n\nError: ${e.message || e.code || "Unknown error"}`,
+        [
+          { text: "OK" }
+        ]
+      );
     } finally {
       setPaywallLoading(false);
     }
@@ -110,10 +164,15 @@ export default function PremiumScreen() {
 
   const presentCustomerCenter = async () => {
     try {
+      console.log("Opening RevenueCat Customer Center...");
       await PurchasesUI.presentCustomerCenter();
-    } catch (e) {
-      console.warn("Customer Center error", e);
-      Alert.alert("Error", "Unable to open the subscription manager right now.");
+    } catch (e: any) {
+      console.error("Customer Center error:", e);
+      Alert.alert(
+        "Cannot Open Customer Center",
+        `Unable to open the subscription manager.\n\nError: ${e.message || e.code || "Unknown error"}`,
+        [{ text: "OK" }]
+      );
     }
   };
 
@@ -143,6 +202,16 @@ export default function PremiumScreen() {
           <View style={styles.activeBadge}>
             <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
             <Text style={styles.activeBadgeText}>Premium Active</Text>
+          </View>
+        )}
+
+        {isRunningInExpoGo() && !isPro && (
+          <View style={styles.expoGoBadge}>
+            <Ionicons name="warning" size={20} color="#FF9800" />
+            <Text style={styles.expoGoBadgeText}>
+              Running in Expo Go: Paywall UI is disabled. Create a development build to test subscriptions.
+              {"\n\n"}Run: npx expo run:android
+            </Text>
           </View>
         )}
 
@@ -235,7 +304,7 @@ export default function PremiumScreen() {
               <TouchableOpacity style={styles.manageButton} onPress={presentCustomerCenter}>
                 <Text style={styles.manageButtonText}>Open Customer Center</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.manageButton} onPress={() => PurchasesUI.presentPaywall({ offeringIdentifier: "default" })}>
+              <TouchableOpacity style={styles.manageButton} onPress={presentPaywall}>
                 <Text style={styles.manageButtonText}>Restore / Change Plan</Text>
               </TouchableOpacity>
             </View>
@@ -302,6 +371,63 @@ const styles = StyleSheet.create({
     color: "#4CAF50",
     fontWeight: "600",
     marginLeft: 8,
+  },
+  expoGoBadge: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FFF3E0",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFE0B2",
+  },
+  expoGoBadgeText: {
+    color: "#E65100",
+    fontSize: 13,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 20,
+  },
+  testModeBadge: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#E3F2FD",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#BBDEFB",
+  },
+  testModeBadgeText: {
+    color: "#1565C0",
+    fontSize: 13,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 18,
+  },
+  warningBadge: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FFF3E0",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFE0B2",
+  },
+  warningBadgeText: {
+    color: "#E65100",
+    fontSize: 13,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 18,
   },
   scrollView: {
     flex: 1,

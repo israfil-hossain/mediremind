@@ -29,7 +29,11 @@ export function useRevenueCat() {
       setCustomerInfo(info);
       setIsPro(isEntitled(info));
     });
-    return () => sub.remove();
+    return () => {
+      if (sub && typeof sub.remove === 'function') {
+        sub.remove();
+      }
+    };
   }, [refresh]);
 
   return { offerings, customerInfo, isPro, loading, refresh };

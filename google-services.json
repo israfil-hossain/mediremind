@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "582942360667",
+    "project_id": "mediremind-60aad",
+    "storage_bucket": "mediremind-60aad.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:582942360667:android:9e63c9cfaf37718fa2ab7e",
+        "android_client_info": {
+          "package_name": "com.flowentech.mediremind"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "582942360667-ns8qt1p3pp0sshmujc09o1mve0rfjet5.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCpK0mhmgl5jKpxQ5yhyjx8HGgcY7Qj798"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "582942360667-ns8qt1p3pp0sshmujc09o1mve0rfjet5.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "582942360667-9ajlcb18agpiheuptq6k0u773hnjs3hm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.flowentech.mediremind"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

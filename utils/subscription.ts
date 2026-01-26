@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ENV } from "../config/env";
 
 const SUBSCRIPTION_KEY = "@subscription";
 const SUBSCRIPTION_TYPE_KEY = "@subscription_type";
@@ -62,6 +63,12 @@ export async function setSubscription(subscription: Subscription): Promise<void>
 }
 
 export async function isPremium(): Promise<boolean> {
+  // Development override: Test premium features without subscription
+  if (__DEV__ && ENV.DEV_IS_PREMIUM) {
+    console.log("🔧 [DEV] Premium override enabled via EXPO_PUBLIC_DEV_IS_PREMIUM");
+    return true;
+  }
+
   const subscription = await getSubscription();
   return subscription.type !== "free" && subscription.isActive;
 }
@@ -85,6 +92,11 @@ export async function canAddMedication(currentCount: number): Promise<boolean> {
 }
 
 export async function getMedicationLimit(): Promise<number> {
+  // Development override: Unlimited medications for testing
+  if (__DEV__ && ENV.DEV_IS_PREMIUM) {
+    return Infinity;
+  }
+
   const subscription = await getSubscription();
   if (subscription.type === "free") {
     return FREE_TIER_MEDICATION_LIMIT;
@@ -93,6 +105,11 @@ export async function getMedicationLimit(): Promise<number> {
 }
 
 export async function getHistoryLimitDays(): Promise<number> {
+  // Development override: Unlimited history for testing
+  if (__DEV__ && ENV.DEV_IS_PREMIUM) {
+    return Infinity;
+  }
+
   const subscription = await getSubscription();
   if (subscription.type === "free") {
     return FREE_TIER_HISTORY_DAYS;
@@ -101,21 +118,33 @@ export async function getHistoryLimitDays(): Promise<number> {
 }
 
 export async function canUseRefillAlerts(): Promise<boolean> {
+  // Development override
+  if (__DEV__ && ENV.DEV_IS_PREMIUM) return true;
+
   const subscription = await getSubscription();
   return subscription.type !== "free" && subscription.isActive;
 }
 
 export async function canUseCloudBackup(): Promise<boolean> {
+  // Development override
+  if (__DEV__ && ENV.DEV_IS_PREMIUM) return true;
+
   const subscription = await getSubscription();
   return subscription.type !== "free" && subscription.isActive;
 }
 
 export async function canExportData(): Promise<boolean> {
+  // Development override
+  if (__DEV__ && ENV.DEV_IS_PREMIUM) return true;
+
   const subscription = await getSubscription();
   return subscription.type !== "free" && subscription.isActive;
 }
 
 export async function canUseAdvancedAnalytics(): Promise<boolean> {
+  // Development override
+  if (__DEV__ && ENV.DEV_IS_PREMIUM) return true;
+
   const subscription = await getSubscription();
   return subscription.type !== "free" && subscription.isActive;
 }

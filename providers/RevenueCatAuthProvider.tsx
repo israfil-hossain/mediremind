@@ -1,55 +1,62 @@
 import { ReactNode, useEffect, useState } from "react";
+import { AppState, AppStateStatus } from "react-native";
 import { initRevenueCat, logInRevenueCat, logOutRevenueCat } from "../utils/revenuecat";
+import { getCurrentUser } from "../utils/firebase";
 
 /**
- * RevenueCat + Firebase Auth bridge.
- * Assumes @react-native-firebase/auth is installed.
- * If Firebase isn't available yet, it will safely no-op and retry once mounted.
+ * RevenueCat + Authentication bridge.
+ * Syncs RevenueCat user ID with our authentication system.
  */
 export function RevenueCatAuthProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    let unsub: (() => void) | undefined;
     let mounted = true;
 
-    const setup = async () => {
-      try {
-        // Lazy import so builds don't fail if firebase isn't installed yet.
-        const firebaseAuth = await import("@react-native-firebase/auth");
-        const auth = firebaseAuth.default();
+    const syncRevenueCatWithAuth = async () => {
+      if (!mounted) return;
 
-        unsub = auth.onAuthStateChanged(async (user) => {
-          if (!mounted) return;
-          try {
-            if (user) {
-              await initRevenueCat(user.uid);
-              await logInRevenueCat(user.uid);
-            } else {
-              await initRevenueCat(undefined);
-              await logOutRevenueCat();
-            }
-          } catch (e) {
-            console.warn("RevenueCat init/login error", e);
-          } finally {
-            if (mounted) setInitialized(true);
-          }
-        });
+      try {
+        const user = await getCurrentUser();
+
+        if (user?.uid) {
+          console.log("Initializing RevenueCat with user:", user.uid);
+          await initRevenueCat(user.uid);
+          await logInRevenueCat(user.uid);
+        } else {
+          console.log("Initializing RevenueCat without user (anonymous)");
+          await initRevenueCat(undefined);
+          await logOutRevenueCat();
+        }
       } catch (e) {
-        console.warn(
-          "Firebase Auth not available yet. RevenueCat will be initialized without user ID.",
-          e
-        );
-        await initRevenueCat(undefined);
+        console.warn("RevenueCat sync error:", e);
+        // Initialize anyway without user ID
+        try {
+          await initRevenueCat(undefined);
+        } catch (initError) {
+          console.error("RevenueCat initialization failed:", initError);
+        }
+      } finally {
         if (mounted) setInitialized(true);
       }
     };
 
-    setup();
+    // Initial sync
+    syncRevenueCatWithAuth();
+
+    // Re-sync when app becomes active (in case user logged in/out)
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextAppState: AppStateStatus) => {
+        if (nextAppState === "active" && mounted) {
+          syncRevenueCatWithAuth();
+        }
+      }
+    );
 
     return () => {
       mounted = false;
-      if (unsub) unsub();
+      appStateSubscription.remove();
     };
   }, []);
 

@@ -1,67 +1,87 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Platform } from "react-native";
 import { RevenueCatAuthProvider } from "../providers/RevenueCatAuthProvider";
-export default function Layout() {
+import { AuthProvider } from "../contexts/AuthContext";
+import { ThemeProvider, useTheme } from "../contexts/ThemeContext";
+
+function RootLayoutContent() {
+  const { theme } = useTheme();
+
   return (
-    <RevenueCatAuthProvider>
-      <StatusBar style="light" />
+    <>
+      <StatusBar style={theme.isDark ? "light" : "dark"} />
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: "white" },
+          contentStyle: { backgroundColor: theme.colors.background },
           animation: "slide_from_right",
           header: () => null,
           navigationBarHidden: true,
         }}
       >
-        <Stack.Screen
-          name="index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="medications/add"
-          options={{
-            headerShown: false,
-            headerBackTitle: "",
-            title: "",
-          }}
-        />
-        <Stack.Screen
-          name="refills/index"
-          options={{
-            headerShown: false,
-            headerBackTitle: "",
-            title: "",
-          }}
-        />
-        <Stack.Screen
-          name="calendar/index"
-          options={{
-            headerShown: false,
-            headerBackTitle: "",
-            title: "",
-          }}
-        />
-        <Stack.Screen
-          name="history/index"
-          options={{
-            headerShown: false,
-            headerBackTitle: "",
-            title: "",
-          }}
-        />
-        <Stack.Screen
-          name="premium"
-          options={{
-            headerShown: false,
-            headerBackTitle: "",
-            title: "",
-          }}
-        />
-      </Stack>
-    </RevenueCatAuthProvider>
+          <Stack.Screen
+            name="index"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="auth"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="(tabs)"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="medications/add"
+            options={{
+              headerShown: false,
+              headerBackTitle: "",
+              title: "",
+            }}
+          />
+          <Stack.Screen
+            name="refills/index"
+            options={{
+              headerShown: false,
+              headerBackTitle: "",
+              title: "",
+            }}
+          />
+          <Stack.Screen
+            name="premium"
+            options={{
+              headerShown: false,
+              headerBackTitle: "",
+              title: "",
+            }}
+          />
+          <Stack.Screen
+            name="settings/index"
+            options={{
+              headerShown: false,
+              headerBackTitle: "",
+              title: "",
+            }}
+          />
+        </Stack>
+    </>
+  );
+}
+
+export default function Layout() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <RevenueCatAuthProvider>
+          <RootLayoutContent />
+        </RevenueCatAuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
