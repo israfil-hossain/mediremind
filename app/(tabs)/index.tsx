@@ -62,7 +62,7 @@ const QUICK_ACTIONS = [
   {
     icon: "time-outline" as const,
     label: "History\nLog",
-    route: "/(tabs)/history" as const,
+    route: "/history/view" as const,
     color: "#C2185B",
     gradient: ["#E91E63", "#C2185B"] as [string, string],
   },
@@ -159,7 +159,6 @@ export default function HomeScreen() {
           return;
         }
       } catch (error) {
-        console.error("Auth check error:", error);
         router.replace("/auth");
       } finally {
         setIsCheckingAuth(false);
@@ -215,7 +214,7 @@ export default function HomeScreen() {
       const completed = todaysDoses.filter((dose) => dose.taken).length;
       setCompletedDoses(completed);
     } catch (error) {
-      console.error("Error loading medications:", error);
+      // Error loading medications
     }
   }, []);
 
@@ -223,7 +222,6 @@ export default function HomeScreen() {
     try {
       const token = await registerForPushNotificationsAsync();
       if (!token) {
-        console.log("Failed to get push notification token");
         return;
       }
 
@@ -235,7 +233,7 @@ export default function HomeScreen() {
         }
       }
     } catch (error) {
-      console.error("Error setting up notifications:", error);
+      // Error setting up notifications
     }
   };
 
@@ -273,7 +271,6 @@ export default function HomeScreen() {
       await recordDose(medication.id, true, new Date().toISOString());
       await loadMedications(); // Reload data after recording dose
     } catch (error) {
-      console.error("Error recording dose:", error);
       Alert.alert("Error", "Failed to record dose. Please try again.");
     }
   };
@@ -324,7 +321,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.notificationButton}
-              onPress={() => router.push("/(tabs)/profile")}
+              onPress={() => router.push("/(tabs)/profile?edit=true")}
             >
               <Ionicons name="person-circle-outline" size={24} color="white" />
             </TouchableOpacity>

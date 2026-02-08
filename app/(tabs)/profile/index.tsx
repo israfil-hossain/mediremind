@@ -9,16 +9,19 @@ import {
   ActivityIndicator,
   Image,
   Switch,
+  Linking,
+  TextInput,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { isPremium, getSubscription } from "../../../utils/subscription";
-import { getMedications } from "../../../utils/storage";
+import { getMedications, getUserProfile, updateUserProfile, UserProfile } from "../../../utils/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const SETTINGS_KEY = "@app_settings";
@@ -152,6 +155,7 @@ function MenuItem(props: MenuItemProps) {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { theme, setThemeMode } = useTheme();
   const {
     user,
@@ -169,10 +173,21 @@ export default function ProfileScreen() {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [isSyncing, setIsSyncing] = useState(false);
   const [subscriptionType, setSubscriptionType] = useState<string>("free");
+  const [userProfile, setUserProfile] = useState<UserProfile>({});
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Auto-open profile edit modal if edit=true is in URL params
+  useEffect(() => {
+    if (params.edit === 'true') {
+      setShowProfileEdit(true);
+      // Clear the parameter from URL
+      router.setParams({ edit: undefined });
+    }
+  }, [params.edit]);
 
   // Refresh user when screen is focused
   useFocusEffect(
@@ -184,22 +199,35 @@ export default function ProfileScreen() {
 
   const loadData = async () => {
     try {
-      const [premium, medications, subscription, savedSettings] = await Promise.all([
+      const [premium, medications, subscription, savedSettings, profile] = await Promise.all([
         isPremium(),
         getMedications(),
         getSubscription(),
         AsyncStorage.getItem(SETTINGS_KEY),
+        getUserProfile(),
       ]);
 
       setIsPremiumUser(premium);
       setMedicationCount(medications.length);
       setSubscriptionType(subscription?.type || "free");
+      setUserProfile(profile);
 
       if (savedSettings) {
         setSettings({ ...defaultSettings, ...JSON.parse(savedSettings) });
       }
     } catch (error) {
       console.error("Error loading profile data:", error);
+    }
+  };
+
+  const handleSaveProfile = async (updatedProfile: UserProfile) => {
+    try {
+      await updateUserProfile(updatedProfile);
+      setUserProfile(updatedProfile);
+      setShowProfileEdit(false);
+      Alert.alert("Success", "Profile updated successfully!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to update profile");
     }
   };
 
@@ -479,6 +507,15 @@ export default function ProfileScreen() {
               )}
 
               <MenuItem
+                icon="people-outline"
+                iconColor="#4CAF50"
+                title="Family Profiles"
+                subtitle="Manage family member medications"
+                onPress={() => router.push("/settings/family")}
+                premium={!isPremiumUser}
+              />
+
+              <MenuItem
                 icon="card-outline"
                 iconColor="#9C27B0"
                 title="Manage Subscription"
@@ -498,26 +535,49 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Medications Section */}
+          {/* Personal Information Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>PERSONAL INFORMATION</Text>
+            <View style={styles.sectionCard}>
+              <MenuItem
+                icon="person-outline"
+                iconColor="#9C27B0"
+                title="My Profile"
+                subtitle={userProfile.name || "Add your personal details"}
+                onPress={() => setShowProfileEdit(true)}
+              />
+              <MenuItem
+                icon="people-outline"
+                iconColor="#FF5722"
+                title="Family Profiles"
+                subtitle="Manage family member profiles"
+                onPress={() => router.push("/settings/family")}
+              />
+              {userProfile.phone && (
+                <View style={styles.infoDisplay}>
+                  <Text style={styles.infoLabel}>Phone:</Text>
+                  <Text style={styles.infoValue}>{userProfile.phone}</Text>
+                </View>
+              )}
+              {userProfile.age && (
+                <View style={styles.infoDisplay}>
+                  <Text style={styles.infoLabel}>Age:</Text>
+                  <Text style={styles.infoValue}>{userProfile.age} years</Text>
+                </View>
+              )}
+              {userProfile.bloodGroup && (
+                <View style={styles.infoDisplay}>
+                  <Text style={styles.infoLabel}>Blood Group:</Text>
+                  <Text style={styles.infoValue}>{userProfile.bloodGroup}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Account Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>MEDICATIONS</Text>
             <View style={styles.sectionCard}>
-              <MenuItem
-                icon="albums-outline"
-                iconColor="#00BCD4"
-                title="Medication Templates"
-                subtitle="Save & reuse medication setups"
-                premium={!isPremiumUser}
-                disabled={!isPremiumUser}
-                onPress={() => {
-                  if (isPremiumUser) {
-                    Alert.alert("Coming Soon", "Templates feature coming soon!");
-                  } else {
-                    router.push("/premium");
-                  }
-                }}
-              />
-
               <MenuItem
                 icon="download-outline"
                 iconColor="#FF5722"
@@ -573,61 +633,6 @@ export default function ProfileScreen() {
                   }
                 }}
               />
-            </View>
-          </View>
-
-          {/* Backup & Sync Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>BACKUP & SYNC</Text>
-            <View style={styles.sectionCard}>
-              <MenuItem
-                icon="cloud-outline"
-                iconColor="#2196F3"
-                title="Cloud Backup"
-                subtitle={user ? "Connected" : "Not connected"}
-                onPress={() => {
-                  if (!user) {
-                    handleSignIn();
-                  }
-                }}
-                rightElement={
-                  <View style={[
-                    styles.cloudStatus,
-                    user ? styles.cloudConnected : styles.cloudDisconnected
-                  ]}>
-                    <Text style={styles.cloudStatusText}>
-                      {user ? "ON" : "OFF"}
-                    </Text>
-                  </View>
-                }
-              />
-
-              {user && (
-                <>
-                  <MenuItem
-                    icon="sync-outline"
-                    iconColor="#4CAF50"
-                    title="Sync Now"
-                    subtitle={formatLastSync(lastSyncTime)}
-                    onPress={handleSyncNow}
-                    rightElement={
-                      isSyncing ? (
-                        <ActivityIndicator size="small" color={theme.colors.primary} />
-                      ) : (
-                        <Ionicons name="chevron-forward" size={20} color={theme.colors.border} />
-                      )
-                    }
-                  />
-
-                  <MenuItem
-                    icon="cloud-download-outline"
-                    iconColor="#FF9800"
-                    title="Restore from Cloud"
-                    subtitle="Download data from backup"
-                    onPress={handleRestoreFromCloud}
-                  />
-                </>
-              )}
             </View>
           </View>
 
@@ -749,7 +754,7 @@ export default function ProfileScreen() {
                 title="Help & Support"
                 subtitle="FAQs and contact support"
                 onPress={() => {
-                  Alert.alert("Help", "Visit our support page");
+                  Linking.openURL("https://mediremind.flowentech.com/help-support");
                 }}
               />
 
@@ -758,7 +763,7 @@ export default function ProfileScreen() {
                 iconColor="#607D8B"
                 title="Privacy Policy"
                 onPress={() => {
-                  Alert.alert("Privacy Policy", "View privacy policy");
+                  Linking.openURL("https://mediremind.flowentech.com/privacy-policy");
                 }}
               />
 
@@ -767,7 +772,7 @@ export default function ProfileScreen() {
                 iconColor="#607D8B"
                 title="Terms of Service"
                 onPress={() => {
-                  Alert.alert("Terms", "View terms of service");
+                  Linking.openURL("https://mediremind.flowentech.com/terms-of-service");
                 }}
               />
 
@@ -777,10 +782,7 @@ export default function ProfileScreen() {
                 title="About MedRemind"
                 subtitle="Version 1.0.0"
                 onPress={() => {
-                  Alert.alert(
-                    "MedRemind",
-                    "Version 1.0.0\n\nYour personal medication reminder app.\n\n© 2024 Flowentech"
-                  );
+                  Linking.openURL("https://mediremind.flowentech.com/about");
                 }}
               />
             </View>
@@ -826,8 +828,298 @@ export default function ProfileScreen() {
             <Text style={styles.footerText}>Made with ❤️ by Flowentech</Text>
           </View>
         </ScrollView>
+
+        {/* Profile Edit Modal */}
+        <Modal
+          animationType="slide"
+          visible={showProfileEdit}
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowProfileEdit(false)}
+        >
+          <ProfileEditModal
+            profile={userProfile}
+            onSave={handleSaveProfile}
+            onClose={() => setShowProfileEdit(false)}
+          />
+        </Modal>
       </SafeAreaView>
     </LinearGradient>
+  );
+}
+
+// Profile Edit Modal Component
+interface ProfileEditModalProps {
+  profile: UserProfile;
+  onSave: (profile: UserProfile) => void;
+  onClose: () => void;
+}
+
+function ProfileEditModal({ profile, onSave, onClose }: ProfileEditModalProps) {
+  const { theme } = useTheme();
+  const [formData, setFormData] = useState<UserProfile>(profile);
+
+  const handleChange = (field: keyof UserProfile, value: string) => {
+    setFormData({ ...formData, [field]: value });
+  };
+
+  const handleSave = () => {
+    onSave(formData);
+  };
+
+  const modalStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    closeButton: {
+      padding: 8,
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: theme.colors.text,
+    },
+    saveButton: {
+      padding: 8,
+    },
+    saveText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.colors.primary,
+    },
+    content: {
+      flex: 1,
+    },
+    section: {
+      padding: 16,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: "bold",
+      marginBottom: 16,
+      color: theme.colors.text,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    formGroup: {
+      marginBottom: 16,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: "500",
+      marginBottom: 8,
+      color: theme.colors.text,
+    },
+    input: {
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.card,
+      color: theme.colors.text,
+    },
+    textArea: {
+      minHeight: 80,
+      textAlignVertical: "top",
+    },
+    note: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 16,
+      backgroundColor: theme.colors.surface,
+      margin: 16,
+      borderRadius: 8,
+      gap: 8,
+    },
+    noteText: {
+      fontSize: 13,
+      color: theme.colors.textSecondary,
+      flex: 1,
+    },
+  });
+
+  return (
+    <View style={modalStyles.container}>
+      <View style={modalStyles.header}>
+        <TouchableOpacity onPress={onClose} style={modalStyles.closeButton}>
+          <Ionicons name="close" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <Text style={modalStyles.title}>Edit Profile</Text>
+        <TouchableOpacity onPress={handleSave} style={modalStyles.saveButton}>
+          <Text style={modalStyles.saveText}>Save</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={modalStyles.content}>
+        <View style={modalStyles.section}>
+          <Text style={modalStyles.sectionTitle}>Basic Information</Text>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Full Name *</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={formData.name || ""}
+              onChangeText={(value) => handleChange("name", value)}
+              placeholder="Enter your full name"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Age</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={formData.age || ""}
+              onChangeText={(value) => handleChange("age", value)}
+              placeholder="Enter your age"
+              placeholderTextColor="#999"
+              keyboardType="number-pad"
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Gender</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={formData.gender || ""}
+              onChangeText={(value) => handleChange("gender", value)}
+              placeholder="Male, Female, Other"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Date of Birth</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={formData.dateOfBirth || ""}
+              onChangeText={(value) => handleChange("dateOfBirth", value)}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Phone Number *</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={formData.phone || ""}
+              onChangeText={(value) => handleChange("phone", value)}
+              placeholder="+1 234 567 8900"
+              placeholderTextColor="#999"
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Email</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={formData.email || ""}
+              onChangeText={(value) => handleChange("email", value)}
+              placeholder="your@email.com"
+              placeholderTextColor="#999"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Address</Text>
+            <TextInput
+              style={[modalStyles.input, modalStyles.textArea]}
+              value={formData.address || ""}
+              onChangeText={(value) => handleChange("address", value)}
+              placeholder="Enter your address"
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={3}
+            />
+          </View>
+        </View>
+
+        <View style={modalStyles.section}>
+          <Text style={modalStyles.sectionTitle}>Health Information</Text>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Blood Group</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={formData.bloodGroup || ""}
+              onChangeText={(value) => handleChange("bloodGroup", value)}
+              placeholder="e.g., A+, B-, O+"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Allergies</Text>
+            <TextInput
+              style={[modalStyles.input, modalStyles.textArea]}
+              value={formData.allergies || ""}
+              onChangeText={(value) => handleChange("allergies", value)}
+              placeholder="List any known allergies"
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={3}
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Chronic Conditions</Text>
+            <TextInput
+              style={[modalStyles.input, modalStyles.textArea]}
+              value={formData.chronicConditions || ""}
+              onChangeText={(value) => handleChange("chronicConditions", value)}
+              placeholder="Any chronic conditions (Diabetes, Hypertension, etc.)"
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={3}
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Emergency Contact</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={formData.emergencyContact || ""}
+              onChangeText={(value) => handleChange("emergencyContact", value)}
+              placeholder="Contact person name"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          <View style={modalStyles.formGroup}>
+            <Text style={modalStyles.label}>Emergency Phone</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={formData.emergencyPhone || ""}
+              onChangeText={(value) => handleChange("emergencyPhone", value)}
+              placeholder="Emergency contact phone"
+              placeholderTextColor="#999"
+              keyboardType="phone-pad"
+            />
+          </View>
+        </View>
+
+        <View style={modalStyles.note}>
+          <Ionicons name="information-circle" size={16} color={theme.colors.textSecondary} />
+          <Text style={modalStyles.noteText}>
+            This information will be auto-filled in your prescriptions
+          </Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -1176,5 +1468,23 @@ const createStyles = (theme: any) => StyleSheet.create({
   footerText: {
     fontSize: 13,
     color: theme.colors.textTertiary,
+  },
+  infoDisplay: {
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    width: 100,
+    fontWeight: "500",
+  },
+  infoValue: {
+    fontSize: 14,
+    color: theme.colors.text,
+    flex: 1,
   },
 });

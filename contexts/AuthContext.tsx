@@ -23,6 +23,10 @@ import {
   getNetworkState,
   NetworkState,
 } from "../utils/networkSync";
+import {
+  startMedicationMonitoring,
+  stopMedicationMonitoring,
+} from "../utils/medicationMonitoring";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const MEDICATIONS_KEY = "@medications";
@@ -77,6 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const existingUser = await getCurrentUser();
         if (mounted) {
           setUser(existingUser);
+
+          // Start medication monitoring if user is logged in
+          if (existingUser) {
+            startMedicationMonitoring();
+          }
         }
 
         // Check network state
@@ -127,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
       stopNetworkMonitoring();
+      stopMedicationMonitoring();
       if (checkNetworkInterval) {
         clearInterval(checkNetworkInterval);
       }
@@ -143,6 +153,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Update last sync time
       const syncTime = await getLastSyncTimestamp();
       setLastSyncTime(syncTime);
+
+      // Start medication monitoring
+      startMedicationMonitoring();
     } catch (error) {
       console.error("Sign in error:", error);
       throw error;
@@ -154,6 +167,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logOut = async () => {
     setIsLoading(true);
     try {
+      // Stop medication monitoring before signing out
+      stopMedicationMonitoring();
+
       await signOut();
       setUser(null);
       setLastSyncTime(null);

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -18,20 +18,12 @@ import {
   DoseHistory,
   Medication,
   clearAllData,
-} from "../../../utils/storage";
-import { getHistoryLimitDays, isPremium } from "../../../utils/subscription";
-import {
-  getFamilyProfiles,
-  getActiveProfileId,
-  setActiveProfile,
-  FamilyProfile,
-} from "../../../utils/familyProfiles";
-import { useTheme } from "../../../contexts/ThemeContext";
+} from "../../utils/storage";
+import { getHistoryLimitDays, isPremium } from "../../utils/subscription";
 
 type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
 
-export default function HistoryScreen() {
-  const { theme } = useTheme();
+export default function HistoryViewScreen() {
   const router = useRouter();
   const [history, setHistory] = useState<EnrichedDoseHistory[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<
@@ -39,25 +31,6 @@ export default function HistoryScreen() {
   >("all");
   const [isPremiumUser, setIsPremiumUser] = useState(false);
   const [historyLimitDays, setHistoryLimitDays] = useState(30);
-  const [familyProfiles, setFamilyProfiles] = useState<FamilyProfile[]>([]);
-  const [activeProfileId, setActiveProfileIdState] = useState<string | null>(null);
-
-  // Check premium status on mount
-  useEffect(() => {
-    checkPremium();
-  }, []);
-
-  const checkPremium = async () => {
-    const premium = await isPremium();
-    setIsPremiumUser(premium);
-  };
-
-  const loadFamilyProfiles = async () => {
-    const profiles = await getFamilyProfiles();
-    setFamilyProfiles(profiles);
-    const activeId = await getActiveProfileId();
-    setActiveProfileIdState(activeId);
-  };
 
   const loadHistory = useCallback(async () => {
     try {
@@ -70,11 +43,6 @@ export default function HistoryScreen() {
 
       setIsPremiumUser(premium);
       setHistoryLimitDays(limitDays);
-
-      // Load family profiles if premium
-      if (premium) {
-        await loadFamilyProfiles();
-      }
 
       // Combine history with medication details
       const enrichedHistory = doseHistory.map((dose) => ({
@@ -95,7 +63,8 @@ export default function HistoryScreen() {
   );
 
   const groupHistoryByDate = () => {
-    const grouped = history.reduce((acc, dose) => {
+    const filtered = filteredHistory;
+    const grouped = filtered.reduce((acc, dose) => {
       const date = new Date(dose.timestamp).toDateString();
       if (!acc[date]) {
         acc[date] = [];
@@ -145,179 +114,6 @@ export default function HistoryScreen() {
     );
   };
 
-  // If premium user, show Family Care Dashboard
-  if (isPremiumUser) {
-    return (
-      <View style={styles.container}>
-        <LinearGradient
-          colors={[theme.colors.primary, theme.colors.primaryDark]}
-          style={styles.headerGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-        />
-
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <Ionicons name="chevron-back" size={28} color={theme.colors.primary} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Family Care</Text>
-          </View>
-
-          <ScrollView
-            style={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Family Profiles Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Family Members</Text>
-                <TouchableOpacity onPress={() => router.push("/settings/family")}>
-                  <Text style={styles.manageButton}>Manage</Text>
-                </TouchableOpacity>
-              </View>
-
-              {familyProfiles.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Ionicons name="people-outline" size={64} color={theme.colors.borderLight} />
-                  <Text style={styles.emptyStateText}>
-                    No family profiles yet
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.addProfileButton}
-                    onPress={() => router.push("/settings/family")}
-                  >
-                    <Text style={styles.addProfileButtonText}>
-                      Add Family Member
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.profilesGrid}>
-                  {familyProfiles.map((profile) => {
-                    const isActive = profile.id === activeProfileId;
-                    return (
-                      <TouchableOpacity
-                        key={profile.id}
-                        style={[
-                          styles.profileCard,
-                          isActive && styles.activeProfileCard,
-                        ]}
-                        onPress={async () => {
-                          await setActiveProfile(profile.id);
-                          setActiveProfileIdState(profile.id);
-                        }}
-                      >
-                        <View
-                          style={[
-                            styles.profileAvatar,
-                            { backgroundColor: isActive ? theme.colors.primary : theme.colors.borderLight },
-                          ]}
-                        >
-                          <Ionicons
-                            name="person"
-                            size={24}
-                            color={isActive ? "white" : theme.colors.textSecondary}
-                          />
-                        </View>
-                        <Text style={styles.profileName}>{profile.name}</Text>
-                        <Text style={styles.profileRelationship}>
-                          {profile.relationship}
-                        </Text>
-                        {isActive && (
-                          <View style={styles.activeIndicator}>
-                            <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-
-            {/* Quick Stats */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Overview</Text>
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Ionicons name="medical" size={28} color={theme.colors.primary} />
-                  <Text style={styles.statValue}>{history.filter(h => h.taken).length}</Text>
-                  <Text style={styles.statLabel}>Doses Taken</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Ionicons name="time" size={28} color={theme.colors.warning} />
-                  <Text style={styles.statValue}>{history.filter(h => !h.taken).length}</Text>
-                  <Text style={styles.statLabel}>Missed</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Ionicons name="people" size={28} color={theme.colors.success} />
-                  <Text style={styles.statValue}>{familyProfiles.length}</Text>
-                  <Text style={styles.statLabel}>Members</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Email Notification Info */}
-            <View style={styles.section}>
-              <View style={styles.infoCard}>
-                <View style={styles.infoIconContainer}>
-                  <Ionicons name="mail-outline" size={24} color={theme.colors.primary} />
-                </View>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoTitle}>Automated Care Alerts</Text>
-                  <Text style={styles.infoDescription}>
-                    Family members with email addresses receive automatic notifications when medications are missed by more than 30 minutes, ensuring timely intervention and medication adherence.
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Quick Actions */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Quick Actions</Text>
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push("/settings/family")}
-              >
-                <View style={styles.actionIcon}>
-                  <Ionicons name="people-outline" size={24} color={theme.colors.primary} />
-                </View>
-                <View style={styles.actionContent}>
-                  <Text style={styles.actionTitle}>Manage Family Profiles</Text>
-                  <Text style={styles.actionSubtitle}>
-                    Add, edit, or remove family members
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={24} color={theme.colors.textTertiary} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push("/history/view")}
-              >
-                <View style={styles.actionIcon}>
-                  <Ionicons name="time-outline" size={24} color={theme.colors.primary} />
-                </View>
-                <View style={styles.actionContent}>
-                  <Text style={styles.actionTitle}>View Full History</Text>
-                  <Text style={styles.actionSubtitle}>
-                    See all medication history
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={24} color={theme.colors.textTertiary} />
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </View>
-    );
-  }
-
-  // Regular History for free users
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -582,37 +378,34 @@ const styles = StyleSheet.create({
   historyContainer: {
     flex: 1,
     paddingHorizontal: 20,
-    backgroundColor: "#f8f9fa",
   },
   dateGroup: {
-    marginBottom: 25,
+    marginBottom: 24,
   },
   dateHeader: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#666",
+    fontWeight: "700",
+    color: "#333",
     marginBottom: 12,
   },
   historyCard: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "white",
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 4,
     elevation: 2,
   },
   medicationColor: {
-    width: 12,
-    height: 40,
-    borderRadius: 6,
-    marginRight: 16,
+    width: 4,
+    height: 48,
+    borderRadius: 2,
+    marginRight: 12,
   },
   medicationInfo: {
     flex: 1,
@@ -626,14 +419,14 @@ const styles = StyleSheet.create({
   medicationDosage: {
     fontSize: 14,
     color: "#666",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   timeText: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 12,
+    color: "#999",
   },
   statusContainer: {
-    alignItems: "flex-end",
+    marginLeft: 12,
   },
   statusBadge: {
     flexDirection: "row",
@@ -643,25 +436,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusText: {
-    marginLeft: 4,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
+    marginLeft: 4,
   },
   clearDataContainer: {
-    padding: 20,
+    paddingVertical: 30,
     alignItems: "center",
-    marginTop: 20,
-    marginBottom: 40,
   },
   clearDataButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFEBEE",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FFCDD2",
+    padding: 12,
   },
   clearDataText: {
     color: "#FF5252",
@@ -709,185 +495,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 14,
     fontWeight: "600",
-  },
-  // Family Care Dashboard Styles
-  scrollContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#333",
-  },
-  manageButton: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1a8e2d",
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-    backgroundColor: "white",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: "#666",
-    marginTop: 12,
-    marginBottom: 20,
-  },
-  addProfileButton: {
-    backgroundColor: "#1a8e2d",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-  },
-  addProfileButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  profilesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  profileCard: {
-    width: "31%",
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    position: "relative",
-  },
-  activeProfileCard: {
-    borderColor: "#1a8e2d",
-    borderWidth: 2,
-  },
-  profileAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  profileName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    textAlign: "center",
-    marginBottom: 2,
-  },
-  profileRelationship: {
-    fontSize: 11,
-    color: "#666",
-    textAlign: "center",
-  },
-  activeIndicator: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-  },
-  statsGrid: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#333",
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-  },
-  actionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#E8F5E9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  actionContent: {
-    flex: 1,
-  },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 2,
-  },
-  actionSubtitle: {
-    fontSize: 13,
-    color: "#666",
-  },
-  infoCard: {
-    flexDirection: "row",
-    backgroundColor: "#E8F5E9",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#C8E6C9",
-  },
-  infoIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#ffffff",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 4,
-  },
-  infoDescription: {
-    fontSize: 13,
-    color: "#666",
-    lineHeight: 18,
   },
 });

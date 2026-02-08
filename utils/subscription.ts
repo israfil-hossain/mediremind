@@ -74,6 +74,12 @@ export async function isPremium(): Promise<boolean> {
 }
 
 export async function isFamilyCare(): Promise<boolean> {
+  // Development override: Test family care features without subscription
+  if (__DEV__ && ENV.DEV_IS_PREMIUM) {
+    console.log("🔧 [DEV] Family Care override enabled via EXPO_PUBLIC_DEV_IS_PREMIUM");
+    return true;
+  }
+
   const subscription = await getSubscription();
   return (
     (subscription.type === "family_care_monthly" ||

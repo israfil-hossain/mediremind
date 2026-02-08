@@ -21,6 +21,9 @@ export const ENV = {
 
   // Development: Override premium status for testing
   DEV_IS_PREMIUM: process.env.EXPO_PUBLIC_DEV_IS_PREMIUM === "true",
+
+  // Resend API Key for email notifications (server-side only, not exposed to client)
+  RESEND_API_KEY: process.env.RESEND_API_KEY || "",
 };
 
 // Firebase config object for initialization

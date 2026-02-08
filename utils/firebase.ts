@@ -1,16 +1,17 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Medication, DoseHistory } from "./storage";
+import { Medication, DoseHistory, Prescription } from "./storage";
 import { ENV } from "../config/env";
 
 const SYNC_QUEUE_KEY = "@sync_queue";
 const LAST_SYNC_KEY = "@last_sync_timestamp";
 const USER_KEY = "@firebase_user";
+const ID_TOKEN_KEY = "@firebase_id_token";
 
 export interface SyncQueueItem {
   id: string;
-  type: "medication" | "dose_history";
+  type: "medication" | "dose_history" | "prescription";
   action: "add" | "update" | "delete";
-  data: Medication | DoseHistory | { id: string };
+  data: Medication | DoseHistory | Prescription | { id: string };
   timestamp: string;
 }
 
@@ -129,6 +130,54 @@ export async function getCurrentUser(): Promise<FirebaseUser | null> {
   }
 }
 
+// Store ID token
+async function setIdToken(token: string | null): Promise<void> {
+  try {
+    if (token) {
+      await AsyncStorage.setItem(ID_TOKEN_KEY, token);
+    } else {
+      await AsyncStorage.removeItem(ID_TOKEN_KEY);
+    }
+  } catch (error) {
+    console.error("Error storing ID token:", error);
+  }
+}
+
+// Get ID token
+async function getIdToken(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(ID_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+// Refresh ID token from Firebase Auth
+export async function refreshIdToken(): Promise<string | null> {
+  if (!isFirebaseReady()) {
+    console.log("Firebase not ready, cannot refresh token");
+    return null;
+  }
+
+  try {
+    const auth = firebaseAuth();
+    const currentUser = auth().currentUser;
+
+    if (!currentUser) {
+      console.log("No current user to refresh token");
+      return null;
+    }
+
+    const idToken = await currentUser.getIdToken(true); // forceRefresh = true
+    await setIdToken(idToken);
+    console.log("✓ ID token refreshed");
+    return idToken;
+  } catch (error) {
+    console.error("Error refreshing ID token:", error);
+    return null;
+  }
+}
+
 // Email/Password Authentication (Works in Expo Go!)
 export async function signUpWithEmail(
   email: string,
@@ -183,6 +232,7 @@ export async function signUpWithEmail(
     };
 
     await setCurrentUser(user);
+    await setIdToken(data.idToken);
     return user;
   } catch (error: any) {
     console.error("Sign up error:", error);
@@ -228,6 +278,7 @@ export async function signInWithEmail(
     };
 
     await setCurrentUser(user);
+    await setIdToken(data.idToken);
     return user;
   } catch (error: any) {
     console.error("Sign in error:", error);
@@ -375,6 +426,15 @@ export async function signInWithGoogle(): Promise<FirebaseUser | null> {
 
     await setCurrentUser(firebaseUser);
 
+    // Get and store ID token for REST API calls
+    try {
+      const idToken = await user.getIdToken();
+      await setIdToken(idToken);
+      console.log("✓ ID token stored for Firestore REST API");
+    } catch (error) {
+      console.warn("⚠ Could not get ID token:", error);
+    }
+
     // Sync data after login
     await syncAllDataToFirebase();
 
@@ -405,6 +465,7 @@ export async function signOut(): Promise<void> {
     }
 
     await setCurrentUser(null);
+    await setIdToken(null);
   } catch (error) {
     console.error("Sign out error:", error);
     throw error;
@@ -507,6 +568,335 @@ export async function removeFromSyncQueue(itemId: string): Promise<void> {
   }
 }
 
+// ============ FIRESTORE REST API OPERATIONS ============
+
+// Helper to convert object to Firestore document format
+function toFirestoreDocument(data: any): any {
+  const fields: any = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === null || value === undefined) continue;
+
+    if (typeof value === 'string') {
+      fields[key] = { stringValue: value };
+    } else if (typeof value === 'number') {
+      fields[key] = { doubleValue: value };
+    } else if (typeof value === 'boolean') {
+      fields[key] = { booleanValue: value };
+    } else if (Array.isArray(value)) {
+      fields[key] = {
+        arrayValue: {
+          values: value.map(item =>
+            typeof item === 'string' ? { stringValue: item } : { doubleValue: item }
+          )
+        }
+      };
+    }
+  }
+  return { fields };
+}
+
+// Helper to convert Firestore document to object
+function fromFirestoreDocument(doc: any): any {
+  if (!doc.fields) return {};
+  const data: any = {};
+  for (const [key, value] of Object.entries(doc.fields)) {
+    const fieldValue = value as any;
+    if (fieldValue.stringValue !== undefined) {
+      data[key] = fieldValue.stringValue;
+    } else if (fieldValue.doubleValue !== undefined) {
+      data[key] = fieldValue.doubleValue;
+    } else if (fieldValue.integerValue !== undefined) {
+      data[key] = parseInt(fieldValue.integerValue);
+    } else if (fieldValue.booleanValue !== undefined) {
+      data[key] = fieldValue.booleanValue;
+    } else if (fieldValue.arrayValue) {
+      data[key] = fieldValue.arrayValue.values?.map((v: any) =>
+        v.stringValue || v.doubleValue || v.integerValue || v.booleanValue
+      ) || [];
+    }
+  }
+  return data;
+}
+
+// Sync medication using REST API
+async function syncMedicationRestAPI(
+  medication: Medication,
+  action: "add" | "update" | "delete"
+): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) {
+    console.log("☁ No user found for medication sync");
+    return false;
+  }
+
+  const projectId = ENV.FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    console.error("☁ Firebase project ID not configured");
+    return false;
+  }
+
+  let idToken = await getIdToken();
+  if (!idToken) {
+    console.log("☁ No ID token available, attempting to refresh...");
+    idToken = await refreshIdToken();
+    if (!idToken) {
+      console.error("☁ Still no ID token after refresh, skipping sync");
+      return false;
+    }
+  }
+
+  try {
+    const documentPath = `users/${user.uid}/medications/${medication.id}`;
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${documentPath}`;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${idToken}`,
+    };
+
+    console.log(`☁ Syncing medication ${action}:`, medication.name);
+
+    if (action === "delete") {
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("☁ Firestore DELETE error:", response.status, errorText);
+        return false;
+      }
+      console.log("✓ Medication deleted from Firestore:", medication.id);
+      return true;
+    } else {
+      // add or update
+      const firestoreDoc = toFirestoreDocument(medication);
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(firestoreDoc),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("☁ Firestore PATCH error:", response.status, errorText);
+        // If unauthorized, try to refresh token and retry once
+        if (response.status === 401) {
+          console.log("☁ Token expired, refreshing and retrying...");
+          const newToken = await refreshIdToken();
+          if (newToken) {
+            const retryResponse = await fetch(url, {
+              method: "PATCH",
+              headers: {
+                ...headers,
+                "Authorization": `Bearer ${newToken}`,
+              },
+              body: JSON.stringify(firestoreDoc),
+            });
+            if (retryResponse.ok) {
+              console.log("✓ Medication saved to Firestore (retry):", medication.name);
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+      console.log("✓ Medication saved to Firestore:", medication.name);
+      return true;
+    }
+  } catch (error) {
+    console.error("☁ Error syncing medication via REST API:", error);
+    return false;
+  }
+}
+
+// Sync dose history using REST API
+async function syncDoseHistoryRestAPI(
+  dose: DoseHistory,
+  action: "add" | "update" | "delete"
+): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) {
+    console.log("☁ No user found for dose history sync");
+    return false;
+  }
+
+  const projectId = ENV.FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    console.error("☁ Firebase project ID not configured");
+    return false;
+  }
+
+  let idToken = await getIdToken();
+  if (!idToken) {
+    console.log("☁ No ID token available, attempting to refresh...");
+    idToken = await refreshIdToken();
+    if (!idToken) {
+      console.error("☁ Still no ID token after refresh, skipping sync");
+      return false;
+    }
+  }
+
+  try {
+    const documentPath = `users/${user.uid}/dose_history/${dose.id}`;
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${documentPath}`;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${idToken}`,
+    };
+
+    console.log(`☁ Syncing dose history ${action}:`, dose.id);
+
+    if (action === "delete") {
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("☁ Firestore DELETE error:", response.status, errorText);
+        return false;
+      }
+      console.log("✓ Dose history deleted from Firestore:", dose.id);
+      return true;
+    } else {
+      // add or update
+      const firestoreDoc = toFirestoreDocument(dose);
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(firestoreDoc),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("☁ Firestore PATCH error:", response.status, errorText);
+        // If unauthorized, try to refresh token and retry once
+        if (response.status === 401) {
+          console.log("☁ Token expired, refreshing and retrying...");
+          const newToken = await refreshIdToken();
+          if (newToken) {
+            const retryResponse = await fetch(url, {
+              method: "PATCH",
+              headers: {
+                ...headers,
+                "Authorization": `Bearer ${newToken}`,
+              },
+              body: JSON.stringify(firestoreDoc),
+            });
+            if (retryResponse.ok) {
+              console.log("✓ Dose history saved to Firestore (retry)");
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+      console.log("✓ Dose history saved to Firestore");
+      return true;
+    }
+  } catch (error) {
+    console.error("☁ Error syncing dose history via REST API:", error);
+    return false;
+  }
+}
+
+// Sync prescription using REST API
+async function syncPrescriptionRestAPI(
+  prescription: Prescription,
+  action: "add" | "update" | "delete"
+): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) {
+    console.log("☁ No user found for prescription sync");
+    return false;
+  }
+
+  const projectId = ENV.FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    console.error("☁ Firebase project ID not configured");
+    return false;
+  }
+
+  let idToken = await getIdToken();
+  if (!idToken) {
+    console.log("☁ No ID token available, attempting to refresh...");
+    idToken = await refreshIdToken();
+    if (!idToken) {
+      console.error("☁ Still no ID token after refresh, skipping sync");
+      return false;
+    }
+  }
+
+  try {
+    const documentPath = `users/${user.uid}/prescriptions/${prescription.id}`;
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${documentPath}`;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${idToken}`,
+    };
+
+    console.log(`☁ Syncing prescription ${action}:`, prescription.title);
+
+    if (action === "delete") {
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("☁ Firestore DELETE error:", response.status, errorText);
+        return false;
+      }
+      console.log("✓ Prescription deleted from Firestore:", prescription.id);
+      return true;
+    } else {
+      // add or update
+      const firestoreDoc = toFirestoreDocument(prescription);
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(firestoreDoc),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("☁ Firestore PATCH error:", response.status, errorText);
+        // If unauthorized, try to refresh token and retry once
+        if (response.status === 401) {
+          console.log("☁ Token expired, refreshing and retrying...");
+          const newToken = await refreshIdToken();
+          if (newToken) {
+            const retryResponse = await fetch(url, {
+              method: "PATCH",
+              headers: {
+                ...headers,
+                "Authorization": `Bearer ${newToken}`,
+              },
+              body: JSON.stringify(firestoreDoc),
+            });
+            if (retryResponse.ok) {
+              console.log("✓ Prescription saved to Firestore (retry):", prescription.title);
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+      console.log("✓ Prescription saved to Firestore:", prescription.title);
+      return true;
+    }
+  } catch (error) {
+    console.error("☁ Error syncing prescription via REST API:", error);
+    return false;
+  }
+}
+
 // ============ FIREBASE SYNC OPERATIONS ============
 
 // Sync a single medication to Firebase
@@ -515,7 +905,17 @@ export async function syncMedicationToFirebase(
   action: "add" | "update" | "delete"
 ): Promise<boolean> {
   const user = await getCurrentUser();
-  if (!user || !isFirebaseReady()) return false;
+  if (!user) return false;
+
+  // Try REST API first (works in Expo Go)
+  const restSuccess = await syncMedicationRestAPI(medication, action);
+  if (restSuccess) {
+    console.log("Medication synced via REST API");
+    return true;
+  }
+
+  // Fallback to native SDK if available
+  if (!isFirebaseReady()) return false;
 
   try {
     const medicationsRef = firestore()
@@ -545,7 +945,17 @@ export async function syncDoseHistoryToFirebase(
   action: "add" | "update" | "delete"
 ): Promise<boolean> {
   const user = await getCurrentUser();
-  if (!user || !isFirebaseReady()) return false;
+  if (!user) return false;
+
+  // Try REST API first (works in Expo Go)
+  const restSuccess = await syncDoseHistoryRestAPI(dose, action);
+  if (restSuccess) {
+    console.log("Dose history synced via REST API");
+    return true;
+  }
+
+  // Fallback to native SDK if available
+  if (!isFirebaseReady()) return false;
 
   try {
     const doseHistoryRef = firestore()
@@ -565,6 +975,46 @@ export async function syncDoseHistoryToFirebase(
     return true;
   } catch (error) {
     console.error("Error syncing dose history to Firebase:", error);
+    return false;
+  }
+}
+
+// Sync a single prescription to Firebase
+export async function syncPrescriptionToFirebase(
+  prescription: Prescription,
+  action: "add" | "update" | "delete"
+): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) return false;
+
+  // Try REST API first (works in Expo Go)
+  const restSuccess = await syncPrescriptionRestAPI(prescription, action);
+  if (restSuccess) {
+    console.log("Prescription synced via REST API");
+    return true;
+  }
+
+  // Fallback to native SDK if available
+  if (!isFirebaseReady()) return false;
+
+  try {
+    const prescriptionsRef = firestore()
+      .collection("users")
+      .doc(user.uid)
+      .collection("prescriptions");
+
+    switch (action) {
+      case "add":
+      case "update":
+        await prescriptionsRef.doc(prescription.id).set(prescription, { merge: true });
+        break;
+      case "delete":
+        await prescriptionsRef.doc(prescription.id).delete();
+        break;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error syncing prescription to Firebase:", error);
     return false;
   }
 }
@@ -604,6 +1054,18 @@ export async function processSyncQueue(): Promise<void> {
         } else {
           success = await syncDoseHistoryToFirebase(
             item.data as DoseHistory,
+            item.action
+          );
+        }
+      } else if (item.type === "prescription") {
+        if (item.action === "delete") {
+          success = await syncPrescriptionToFirebase(
+            { id: (item.data as { id: string }).id } as Prescription,
+            "delete"
+          );
+        } else {
+          success = await syncPrescriptionToFirebase(
+            item.data as Prescription,
             item.action
           );
         }
@@ -721,5 +1183,93 @@ export async function getLastSyncTimestamp(): Promise<string | null> {
     return await AsyncStorage.getItem(LAST_SYNC_KEY);
   } catch {
     return null;
+  }
+}
+
+// Test function to verify Firestore connection and authentication
+export async function testFirestoreConnection(): Promise<{
+  success: boolean;
+  message: string;
+  details?: any;
+}> {
+  console.log("🔍 Testing Firestore connection...");
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return {
+      success: false,
+      message: "No user logged in. Please sign in first.",
+    };
+  }
+
+  const projectId = ENV.FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    return {
+      success: false,
+      message: "Firebase project ID not configured in .env",
+    };
+  }
+
+  let idToken = await getIdToken();
+  if (!idToken) {
+    console.log("🔍 No ID token found, attempting to refresh...");
+    idToken = await refreshIdToken();
+    if (!idToken) {
+      return {
+        success: false,
+        message: "No ID token available. Authentication failed.",
+      };
+    }
+  }
+
+  // Test by trying to read the user's medications collection
+  try {
+    const collectionPath = `users/${user.uid}/medications`;
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionPath}`;
+
+    console.log("🔍 Testing Firestore read at:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
+    });
+
+    const responseText = await response.text();
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      responseData = responseText;
+    }
+
+    console.log("🔍 Firestore response status:", response.status);
+    console.log("🔍 Firestore response:", responseData);
+
+    if (response.ok) {
+      return {
+        success: true,
+        message: "Firestore connection successful!",
+        details: {
+          documentCount: responseData.documents?.length || 0,
+          userUid: user.uid,
+        },
+      };
+    } else {
+      return {
+        success: false,
+        message: `Firestore error: ${response.status} ${response.statusText}`,
+        details: responseData,
+      };
+    }
+  } catch (error: any) {
+    console.error("🔍 Firestore test error:", error);
+    return {
+      success: false,
+      message: error.message || "Network error",
+      details: error,
+    };
   }
 }

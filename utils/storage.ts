@@ -6,12 +6,14 @@ import {
   isFirebaseReady,
   syncMedicationToFirebase,
   syncDoseHistoryToFirebase,
+  syncPrescriptionToFirebase,
 } from "./firebase";
 import { getNetworkState } from "./networkSync";
 
 const MEDICATIONS_KEY = "@medications";
 const DOSE_HISTORY_KEY = "@dose_history";
 const PRESCRIPTIONS_KEY = "@prescriptions";
+const USER_PROFILE_KEY = "@user_profile";
 
 // Helper to add item to sync queue or sync directly if online
 async function syncOrQueue(
@@ -26,14 +28,57 @@ async function syncOrQueue(
   const isOnline =
     networkState.isConnected && networkState.isInternetReachable === true;
 
-  if (isOnline && isFirebaseReady()) {
-    // Sync directly to Firebase
+  if (isOnline) {
+    // Sync directly to Firebase using REST API (works in Expo Go)
     try {
       if (type === "medication") {
-        await syncMedicationToFirebase(data as Medication, action);
+        const success = await syncMedicationToFirebase(data as Medication, action);
+        if (!success) throw new Error("Sync failed");
       } else {
-        await syncDoseHistoryToFirebase(data as DoseHistory, action);
+        const success = await syncDoseHistoryToFirebase(data as DoseHistory, action);
+        if (!success) throw new Error("Sync failed");
       }
+    } catch (error) {
+      // If direct sync fails, add to queue
+      console.warn("Direct sync failed, adding to queue:", error);
+      await addToSyncQueue({
+        id: Math.random().toString(36).slice(2, 11),
+        type,
+        action,
+        data,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } else {
+    // Offline - add to sync queue for later
+    await addToSyncQueue({
+      id: Math.random().toString(36).slice(2, 11),
+      type,
+      action,
+      data,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+// Helper to sync prescriptions
+async function syncOrQueuePrescription(
+  type: "prescription",
+  action: "add" | "update" | "delete",
+  data: Prescription | { id: string }
+): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) return; // Not logged in, no sync needed
+
+  const networkState = await getNetworkState();
+  const isOnline =
+    networkState.isConnected && networkState.isInternetReachable === true;
+
+  if (isOnline) {
+    // Sync directly to Firebase using REST API (works in Expo Go)
+    try {
+      const success = await syncPrescriptionToFirebase(data as Prescription, action);
+      if (!success) throw new Error("Sync failed");
     } catch (error) {
       // If direct sync fails, add to queue
       console.warn("Direct sync failed, adding to queue:", error);
@@ -82,13 +127,72 @@ export interface DoseHistory {
 
 export interface Prescription {
   id: string;
-  title: string;
-  doctorName?: string;
+  title: string; // Diagnosis or prescription name
   prescriptionDate: string;
-  notes?: string;
-  imageUri?: string;
-  medicationNames?: string[];
+
+  // Patient Information (auto-filled from profile)
+  patientName?: string;
+  patientAge?: string;
+  patientGender?: string;
+  patientWeight?: string; // in kg
+  patientBP?: string; // Blood Pressure
+  patientPulse?: string; // Pulse rate
+  patientTemperature?: string; // Temperature
+  patientAddress?: string;
+  patientPhone?: string;
+  patientDiagnosis?: string; // Patient's known diagnosis
+
+  // Doctor Information
+  doctorName?: string;
+  doctorSpecialty?: string; // e.g., "Cardiologist", "General Physician"
+  doctorPhone?: string;
+  doctorEmail?: string;
+  doctorAddress?: string;
+  doctorWebsite?: string;
+
+  // Hospital Information
+  hospitalName?: string;
+  hospitalAddress?: string;
+  hospitalPhone?: string;
+
+  // Medical Information
+  symptoms?: string; // Patient symptoms
+  diagnosis?: string; // Doctor's diagnosis for this visit
+  notes?: string; // Doctor's notes/instructions
+
+  // Medications with dosage
+  medications?: PrescriptionMedication[];
+
+  // Vitals/Additional info
+  chiefComplaint?: string; // Main reason for visit
+  nextVisitDate?: string; // Follow-up date
+
+  // Additional
+  imageUri?: string; // Prescription image/photo
   createdAt: string;
+}
+
+export interface PrescriptionMedication {
+  name: string;
+  dosage?: string;
+  frequency?: string; // e.g., "Twice daily", "3 times a day"
+  duration?: string; // e.g., "7 days", "2 weeks"
+  instructions?: string; // e.g., "Take after meals"
+}
+
+export interface UserProfile {
+  name?: string;
+  age?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  bloodGroup?: string;
+  allergies?: string;
+  chronicConditions?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
+  dateOfBirth?: string;
+  gender?: string;
 }
 
 export async function getMedications(): Promise<Medication[]> {
@@ -274,7 +378,9 @@ export async function addPrescription(
     const prescriptions = await getPrescriptions();
     prescriptions.push(prescription);
     await AsyncStorage.setItem(PRESCRIPTIONS_KEY, JSON.stringify(prescriptions));
-    // TODO: Add Firebase sync support
+
+    // Sync to Firebase
+    await syncOrQueuePrescription("prescription", "add", prescription);
   } catch (error) {
     console.error("Error adding prescription:", error);
     throw error;
@@ -290,7 +396,9 @@ export async function updatePrescription(
     if (index !== -1) {
       prescriptions[index] = updatedPrescription;
       await AsyncStorage.setItem(PRESCRIPTIONS_KEY, JSON.stringify(prescriptions));
-      // TODO: Add Firebase sync support
+
+      // Sync to Firebase
+      await syncOrQueuePrescription("prescription", "update", updatedPrescription);
     }
   } catch (error) {
     console.error("Error updating prescription:", error);
@@ -306,9 +414,89 @@ export async function deletePrescription(id: string): Promise<void> {
       PRESCRIPTIONS_KEY,
       JSON.stringify(updatedPrescriptions)
     );
-    // TODO: Add Firebase sync support
+
+    // Sync deletion to Firebase
+    await syncOrQueuePrescription("prescription", "delete", { id });
   } catch (error) {
     console.error("Error deleting prescription:", error);
+    throw error;
+  }
+}
+
+// ============ USER PROFILE OPERATIONS ============
+
+export async function getUserProfile(): Promise<UserProfile> {
+  try {
+    const data = await AsyncStorage.getItem(USER_PROFILE_KEY);
+    return data ? JSON.parse(data) : {};
+  } catch (error) {
+    console.error("Error getting user profile:", error);
+    return {};
+  }
+}
+
+export async function updateUserProfile(
+  profile: UserProfile
+): Promise<void> {
+  try {
+    await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+
+    // Also sync to Firestore (sync as user profile document)
+    const user = await getCurrentUser();
+    if (user) {
+      const projectId = ENV.FIREBASE_PROJECT_ID;
+      if (projectId) {
+        let idToken = await getIdToken();
+        if (!idToken) {
+          // Try to refresh if no token
+          try {
+            const { refreshIdToken } = await import("./firebase");
+            idToken = await refreshIdToken();
+          } catch (e) {
+            console.warn("Could not refresh ID token");
+          }
+        }
+
+        if (idToken) {
+          try {
+            const documentPath = `users/${user.uid}/profile/info`;
+            const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${documentPath}`;
+
+            // Convert profile to Firestore format
+            const fields: any = {};
+            if (profile.name) fields.name = { stringValue: profile.name };
+            if (profile.age) fields.age = { stringValue: profile.age };
+            if (profile.address) fields.address = { stringValue: profile.address };
+            if (profile.phone) fields.phone = { stringValue: profile.phone };
+            if (profile.email) fields.email = { stringValue: profile.email };
+            if (profile.bloodGroup) fields.bloodGroup = { stringValue: profile.bloodGroup };
+            if (profile.allergies) fields.allergies = { stringValue: profile.allergies };
+            if (profile.chronicConditions) fields.chronicConditions = { stringValue: profile.chronicConditions };
+            if (profile.emergencyContact) fields.emergencyContact = { stringValue: profile.emergencyContact };
+            if (profile.emergencyPhone) fields.emergencyPhone = { stringValue: profile.emergencyPhone };
+            if (profile.dateOfBirth) fields.dateOfBirth = { stringValue: profile.dateOfBirth };
+            if (profile.gender) fields.gender = { stringValue: profile.gender };
+
+            const response = await fetch(url, {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({ fields }),
+            });
+
+            if (response.ok) {
+              console.log("✓ User profile synced to Firestore");
+            }
+          } catch (error) {
+            console.warn("Failed to sync profile to Firestore:", error);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error updating user profile:", error);
     throw error;
   }
 }

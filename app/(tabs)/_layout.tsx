@@ -70,9 +70,13 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="history"
         options={{
-          title: "History",
+          title: isPremiumUser ? "Family Care" : "History",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time" size={size} color={color} />
+            <Ionicons
+              name={isPremiumUser ? "people" : "time"}
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
