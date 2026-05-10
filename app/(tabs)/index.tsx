@@ -16,6 +16,7 @@ import { Link, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import PremiumModal from "../../components/PremiumModal";
+import AdBanner from "../../components/AdBanner";
 import {
   getMedications,
   Medication,
@@ -31,6 +32,8 @@ import {
 import { getMedicationLimit, isPremium } from "../../utils/subscription";
 import { getCurrentUser } from "../../utils/firebase";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
+import DoctorDashboard from "../../components/DoctorDashboard";
 
 const { width } = Dimensions.get("window");
 
@@ -136,7 +139,7 @@ function CircularProgress({
   );
 }
 
-export default function HomeScreen() {
+function PatientHomeScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -254,16 +257,12 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Use useFocusEffect for subsequent updates
+  // Use useFocusEffect to reload when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      const unsubscribe = () => {
-        // Cleanup if needed
-      };
-
       loadMedications();
-      return () => unsubscribe();
-    }, [loadMedications])
+      return () => {}; // No cleanup needed
+    }, []) // Empty dependency array to prevent infinite loop
   );
 
   const handleTakeDose = async (medication: Medication) => {
@@ -518,6 +517,9 @@ export default function HomeScreen() {
           )}
         </View>
       </PremiumModal>
+
+      {/* Banner Ad for Free Users */}
+      <AdBanner />
     </ScrollView>
   );
 }
@@ -905,3 +907,14 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontWeight: "600",
   },
 });
+
+// Main component that shows different dashboards based on role
+export default function HomeScreen() {
+  const { userRole } = useAuth();
+
+  if (userRole === "doctor") {
+    return <DoctorDashboard />;
+  }
+
+  return <PatientHomeScreen />;
+}

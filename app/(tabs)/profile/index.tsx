@@ -159,6 +159,7 @@ export default function ProfileScreen() {
   const { theme, setThemeMode } = useTheme();
   const {
     user,
+    userRole,
     isLoading,
     isOnline,
     lastSyncTime,
@@ -189,16 +190,34 @@ export default function ProfileScreen() {
     }
   }, [params.edit]);
 
-  // Refresh user when screen is focused
+  // Refresh data when screen is focused (but don't refresh user, AuthContext handles that)
   useFocusEffect(
     React.useCallback(() => {
-      refreshUser();
       loadData();
-    }, [])
+    }, [userRole])
   );
 
   const loadData = async () => {
     try {
+      // Doctors don't need subscription checks - they're always "premium"
+      if (userRole === "doctor") {
+        const [savedSettings, profile] = await Promise.all([
+          AsyncStorage.getItem(SETTINGS_KEY),
+          getUserProfile(),
+        ]);
+
+        setIsPremiumUser(true); // Doctors have full access
+        setMedicationCount(0); // Not relevant for doctors
+        setSubscriptionType("free"); // Doctors don't have subscriptions
+        setUserProfile(profile);
+
+        if (savedSettings) {
+          setSettings({ ...defaultSettings, ...JSON.parse(savedSettings) });
+        }
+        return;
+      }
+
+      // For patients, load subscription data
       const [premium, medications, subscription, savedSettings, profile] = await Promise.all([
         isPremium(),
         getMedications(),
@@ -341,12 +360,6 @@ export default function ProfileScreen() {
         return "Premium Yearly";
       case "premium_lifetime":
         return "Premium Lifetime";
-      case "family_care_monthly":
-        return "Family Care Monthly";
-      case "family_care_yearly":
-        return "Family Care Yearly";
-      case "family_care_lifetime":
-        return "Family Care Lifetime";
       default:
         return "Free Plan";
     }
@@ -461,79 +474,81 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          {/* Subscription Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>SUBSCRIPTION</Text>
-            <View style={styles.sectionCard}>
-              <View style={styles.subscriptionHeader}>
-                <View style={styles.subscriptionInfo}>
-                  <View style={[
-                    styles.planBadge,
-                    isPremiumUser ? styles.premiumPlanBadge : styles.freePlanBadge
-                  ]}>
-                    <Ionicons
-                      name={isPremiumUser ? "star" : "leaf"}
-                      size={16}
-                      color={isPremiumUser ? "#FF9800" : theme.colors.primary}
-                    />
-                    <Text style={[
-                      styles.planBadgeText,
-                      isPremiumUser ? styles.premiumPlanText : styles.freePlanText
+          {/* Subscription Section - Hidden for doctors */}
+          {userRole !== "doctor" && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>SUBSCRIPTION</Text>
+              <View style={styles.sectionCard}>
+                <View style={styles.subscriptionHeader}>
+                  <View style={styles.subscriptionInfo}>
+                    <View style={[
+                      styles.planBadge,
+                      isPremiumUser ? styles.premiumPlanBadge : styles.freePlanBadge
                     ]}>
-                      {getSubscriptionLabel(subscriptionType)}
+                      <Ionicons
+                        name={isPremiumUser ? "star" : "leaf"}
+                        size={16}
+                        color={isPremiumUser ? "#FF9800" : theme.colors.primary}
+                      />
+                      <Text style={[
+                        styles.planBadgeText,
+                        isPremiumUser ? styles.premiumPlanText : styles.freePlanText
+                      ]}>
+                        {getSubscriptionLabel(subscriptionType)}
+                      </Text>
+                    </View>
+                    <Text style={styles.subscriptionDetail}>
+                      {isPremiumUser
+                        ? "Unlimited medications & features"
+                        : `${medicationCount}/5 medications used`}
                     </Text>
                   </View>
-                  <Text style={styles.subscriptionDetail}>
-                    {isPremiumUser
-                      ? "Unlimited medications & features"
-                      : `${medicationCount}/5 medications used`}
-                  </Text>
                 </View>
-              </View>
 
-              {!isPremiumUser && (
-                <TouchableOpacity
-                  style={styles.upgradeButton}
-                  onPress={() => router.push("/premium")}
-                >
-                  <LinearGradient
-                    colors={["#FF9800", "#F57C00"]}
-                    style={styles.upgradeGradient}
+                {!isPremiumUser && (
+                  <TouchableOpacity
+                    style={styles.upgradeButton}
+                    onPress={() => router.push("/premium")}
                   >
-                    <Ionicons name="star" size={20} color="#fff" />
-                    <Text style={styles.upgradeButtonText}>Upgrade to Premium</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
+                    <LinearGradient
+                      colors={["#FF9800", "#F57C00"]}
+                      style={styles.upgradeGradient}
+                    >
+                      <Ionicons name="star" size={20} color="#fff" />
+                      <Text style={styles.upgradeButtonText}>Upgrade to Premium</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
 
-              <MenuItem
-                icon="people-outline"
-                iconColor="#4CAF50"
-                title="Family Profiles"
-                subtitle="Manage family member medications"
-                onPress={() => router.push("/settings/family")}
-                premium={!isPremiumUser}
-              />
+                <MenuItem
+                  icon="people-outline"
+                  iconColor="#4CAF50"
+                  title="Family Profiles"
+                  subtitle="Manage family member medications"
+                  onPress={() => router.push("/settings/family")}
+                  premium={!isPremiumUser}
+                />
 
-              <MenuItem
-                icon="card-outline"
-                iconColor="#9C27B0"
-                title="Manage Subscription"
-                subtitle="View plans and billing"
-                onPress={() => router.push("/premium")}
-              />
+                <MenuItem
+                  icon="card-outline"
+                  iconColor="#9C27B0"
+                  title="Manage Subscription"
+                  subtitle="View plans and billing"
+                  onPress={() => router.push("/premium")}
+                />
 
-              <MenuItem
-                icon="refresh-outline"
-                iconColor="#2196F3"
-                title="Restore Purchases"
-                subtitle="Restore previous purchases"
-                onPress={() => {
-                  Alert.alert("Restore", "Checking for previous purchases...");
-                }}
-              />
+                <MenuItem
+                  icon="refresh-outline"
+                  iconColor="#2196F3"
+                  title="Restore Purchases"
+                  subtitle="Restore previous purchases"
+                  onPress={() => {
+                    Alert.alert("Restore", "Checking for previous purchases...");
+                  }}
+                />
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Personal Information Section */}
           <View style={styles.section}>
@@ -546,13 +561,15 @@ export default function ProfileScreen() {
                 subtitle={userProfile.name || "Add your personal details"}
                 onPress={() => setShowProfileEdit(true)}
               />
-              <MenuItem
-                icon="people-outline"
-                iconColor="#FF5722"
-                title="Family Profiles"
-                subtitle="Manage family member profiles"
-                onPress={() => router.push("/settings/family")}
-              />
+              {userRole !== "doctor" && (
+                <MenuItem
+                  icon="people-outline"
+                  iconColor="#FF5722"
+                  title="Family Profiles"
+                  subtitle="Manage family member profiles"
+                  onPress={() => router.push("/settings/family")}
+                />
+              )}
               {userProfile.phone && (
                 <View style={styles.infoDisplay}>
                   <Text style={styles.infoLabel}>Phone:</Text>
@@ -574,67 +591,71 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Account Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>MEDICATIONS</Text>
-            <View style={styles.sectionCard}>
-              <MenuItem
-                icon="download-outline"
-                iconColor="#FF5722"
-                title="Import / Export"
-                subtitle="Backup medications to file"
-                onPress={() => {
-                  Alert.alert("Export", "Export feature coming soon!");
-                }}
-              />
+          {/* Account Section - Hidden for doctors */}
+          {userRole !== "doctor" && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>MEDICATIONS</Text>
+              <View style={styles.sectionCard}>
+                <MenuItem
+                  icon="download-outline"
+                  iconColor="#FF5722"
+                  title="Import / Export"
+                  subtitle="Backup medications to file"
+                  onPress={() => {
+                    Alert.alert("Export", "Export feature coming soon!");
+                  }}
+                />
 
-              <MenuItem
-                icon="notifications-outline"
-                iconColor="#E91E63"
-                title="Refill Reminders"
-                subtitle="Manage refill alerts"
-                onPress={() => router.push("/refills")}
-              />
+                <MenuItem
+                  icon="notifications-outline"
+                  iconColor="#E91E63"
+                  title="Refill Reminders"
+                  subtitle="Manage refill alerts"
+                  onPress={() => router.push("/refills")}
+                />
+              </View>
             </View>
-          </View>
+          )}
 
-          {/* History & Analytics Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>HISTORY & ANALYTICS</Text>
-            <View style={styles.sectionCard}>
-              <MenuItem
-                icon="analytics-outline"
-                iconColor="#009688"
-                title="Analytics Dashboard"
-                subtitle="Adherence stats & trends"
-                premium={!isPremiumUser}
-                disabled={!isPremiumUser}
-                onPress={() => {
-                  if (isPremiumUser) {
-                    router.push("/analytics");
-                  } else {
-                    router.push("/premium");
-                  }
-                }}
-              />
+          {/* History & Analytics Section - Hidden for doctors */}
+          {userRole !== "doctor" && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>HISTORY & ANALYTICS</Text>
+              <View style={styles.sectionCard}>
+                <MenuItem
+                  icon="analytics-outline"
+                  iconColor="#009688"
+                  title="Analytics Dashboard"
+                  subtitle="Adherence stats & trends"
+                  premium={!isPremiumUser}
+                  disabled={!isPremiumUser}
+                  onPress={() => {
+                    if (isPremiumUser) {
+                      router.push("/analytics");
+                    } else {
+                      router.push("/premium");
+                    }
+                  }}
+                />
 
-              <MenuItem
-                icon="document-text-outline"
-                iconColor="#795548"
-                title="Export Reports"
-                subtitle="HTML, CSV & JSON reports"
-                premium={!isPremiumUser}
-                disabled={!isPremiumUser}
-                onPress={() => {
-                  if (isPremiumUser) {
-                    router.push("/analytics");
-                  } else {
-                    router.push("/premium");
-                  }
-                }}
-              />
+                <MenuItem
+                  icon="document-text-outline"
+                  iconColor="#795548"
+                  title="Export Reports"
+                  subtitle="HTML, CSV & JSON reports"
+                  premium={!isPremiumUser}
+                  disabled={!isPremiumUser}
+                  onPress={() => {
+                    if (isPremiumUser) {
+                      router.push("/analytics");
+                    } else {
+                      router.push("/premium");
+                    }
+                  }}
+                />
+              </View>
             </View>
-          </View>
+          )}
 
           {/* App Settings Section */}
           <View style={styles.section}>
@@ -718,21 +739,21 @@ export default function ProfileScreen() {
                       {
                         text: "Light",
                         onPress: async () => {
-                          await setThemeMode("light");
+                          setThemeMode("light");
                           await saveSettings({ ...settings, theme: "light" });
                         },
                       },
                       {
                         text: "Dark",
                         onPress: async () => {
-                          await setThemeMode("dark");
+                          setThemeMode("dark");
                           await saveSettings({ ...settings, theme: "dark" });
                         },
                       },
                       {
                         text: "Auto",
                         onPress: async () => {
-                          await setThemeMode("auto");
+                          setThemeMode("auto");
                           await saveSettings({ ...settings, theme: "system" });
                         },
                       },
@@ -779,7 +800,7 @@ export default function ProfileScreen() {
               <MenuItem
                 icon="information-circle-outline"
                 iconColor="#607D8B"
-                title="About MedRemind"
+                title="About MediRemind"
                 subtitle="Version 1.0.0"
                 onPress={() => {
                   Linking.openURL("https://mediremind.flowentech.com/about");

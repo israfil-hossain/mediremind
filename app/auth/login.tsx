@@ -17,30 +17,27 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   signInWithEmail,
-  signUpWithEmail,
   getCurrentUser,
   sendPasswordResetEmail,
   signInWithGoogle,
+  isFirebaseAvailable,
   initializeFirebase,
   configureGoogleSignIn,
-  isFirebaseAvailable,
-} from "../utils/firebase";
+} from "../../utils/firebase";
+import { getUserProfile } from "../../utils/userManagement";
 
 const { width } = Dimensions.get("window");
 
-export default function AuthScreen() {
+export default function LoginScreen() {
   const router = useRouter();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
 
   // Form fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
 
   useEffect(() => {
     checkExistingUser();
@@ -50,7 +47,11 @@ export default function AuthScreen() {
   const initializeFirebaseServices = async () => {
     try {
       await initializeFirebase();
-      await configureGoogleSignIn();
+      try {
+        await configureGoogleSignIn();
+      } catch (error) {
+        console.log("Google Sign-In not available");
+      }
     } catch (error) {
       console.error("Firebase initialization error:", error);
     }
@@ -64,7 +65,7 @@ export default function AuthScreen() {
         router.replace("/(tabs)");
       }
     } catch (error) {
-      console.error("User check error:", error);
+      // User check error
     } finally {
       setIsInitializing(false);
     }
@@ -93,48 +94,7 @@ export default function AuthScreen() {
       return false;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return false;
-    }
-
-    if (isSignUp) {
-      if (!displayName.trim()) {
-        setError("Name is required");
-        return false;
-      }
-
-      if (password !== confirmPassword) {
-        setError("Passwords do not match");
-        return false;
-      }
-    }
-
     return true;
-  };
-
-  const handleSignUp = async () => {
-    if (!validateForm()) return;
-
-    try {
-      setIsAuthenticating(true);
-      setError(null);
-
-      const user = await signUpWithEmail(email, password, displayName);
-
-      Alert.alert("Success!", `Welcome ${user.displayName}!`, [
-        {
-          text: "Continue",
-          onPress: () => router.replace("/(tabs)"),
-        },
-      ]);
-    } catch (err: any) {
-      console.error("Sign up error:", err);
-      const errorMessage = err.message || "An error occurred during sign up";
-      setError(errorMessage);
-    } finally {
-      setIsAuthenticating(false);
-    }
   };
 
   const handleSignIn = async () => {
@@ -144,11 +104,18 @@ export default function AuthScreen() {
       setIsAuthenticating(true);
       setError(null);
 
-      await signInWithEmail(email, password);
+      const user = await signInWithEmail(email, password);
 
+      // Load user profile to ensure role is available
+      const profile = await getUserProfile(user.uid);
+      if (!profile) {
+        setError("User profile not found. Please contact support.");
+        return;
+      }
+
+      console.log("✓ Logged in as:", profile.role);
       router.replace("/(tabs)");
     } catch (err: any) {
-      console.error("Sign in error:", err);
       const errorMessage = err.message || "An error occurred during sign in";
       setError(errorMessage);
     } finally {
@@ -179,7 +146,6 @@ export default function AuthScreen() {
         ]
       );
     } catch (err: any) {
-      console.error("Forgot password error:", err);
       const errorMessage =
         err.message || "Failed to send password reset email";
       setError(errorMessage);
@@ -208,28 +174,11 @@ export default function AuthScreen() {
         router.replace("/(tabs)");
       }
     } catch (err: any) {
-      console.error("Google sign in error:", err);
       const errorMessage = err.message || "Failed to sign in with Google";
       setError(errorMessage);
     } finally {
       setIsAuthenticating(false);
     }
-  };
-
-  const toggleMode = () => {
-    setIsSignUp(!isSignUp);
-    setIsForgotPassword(false);
-    setError(null);
-    setPassword("");
-    setConfirmPassword("");
-  };
-
-  const toggleForgotPassword = () => {
-    setIsForgotPassword(!isForgotPassword);
-    setIsSignUp(false);
-    setError(null);
-    setPassword("");
-    setConfirmPassword("");
   };
 
   if (isInitializing) {
@@ -254,49 +203,33 @@ export default function AuthScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.content}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color="white" />
+            </TouchableOpacity>
+
             <View style={styles.iconContainer}>
               <Ionicons name="medical" size={80} color="white" />
             </View>
 
-            <Text style={styles.title}>MedRemind</Text>
+            <Text style={styles.title}>MediRemind</Text>
             <Text style={styles.subtitle}>
-              Your Personal Medication Assistant
+              {isForgotPassword
+                ? "Reset your password"
+                : "Sign in to access your account"}
             </Text>
 
             <View style={styles.card}>
               <Text style={styles.welcomeText}>
-                {isForgotPassword
-                  ? "Reset Password"
-                  : isSignUp
-                  ? "Create Account"
-                  : "Welcome Back"}
+                {isForgotPassword ? "Forgot Password" : "Welcome Back"}
               </Text>
               <Text style={styles.instructionText}>
                 {isForgotPassword
                   ? "Enter your email to receive password reset instructions"
-                  : isSignUp
-                  ? "Sign up to start managing your medications"
-                  : "Sign in to access your medications"}
+                  : "Enter your credentials to continue"}
               </Text>
-
-              {isSignUp && !isForgotPassword && (
-                <View style={styles.inputContainer}>
-                  <Ionicons
-                    name="person-outline"
-                    size={20}
-                    color="#666"
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Full Name"
-                    value={displayName}
-                    onChangeText={setDisplayName}
-                    autoCapitalize="words"
-                    editable={!isAuthenticating}
-                  />
-                </View>
-              )}
 
               <View style={styles.inputContainer}>
                 <Ionicons
@@ -337,26 +270,6 @@ export default function AuthScreen() {
                 </View>
               )}
 
-              {isSignUp && !isForgotPassword && (
-                <View style={styles.inputContainer}>
-                  <Ionicons
-                    name="lock-closed-outline"
-                    size={20}
-                    color="#666"
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Confirm Password"
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    editable={!isAuthenticating}
-                  />
-                </View>
-              )}
-
               {error && (
                 <View style={styles.errorContainer}>
                   <Ionicons name="alert-circle" size={20} color="#f44336" />
@@ -370,11 +283,7 @@ export default function AuthScreen() {
                   isAuthenticating && styles.buttonDisabled,
                 ]}
                 onPress={
-                  isForgotPassword
-                    ? handleForgotPassword
-                    : isSignUp
-                    ? handleSignUp
-                    : handleSignIn
+                  isForgotPassword ? handleForgotPassword : handleSignIn
                 }
                 disabled={isAuthenticating}
               >
@@ -382,19 +291,15 @@ export default function AuthScreen() {
                   <ActivityIndicator color="white" />
                 ) : (
                   <Text style={styles.buttonText}>
-                    {isForgotPassword
-                      ? "Send Reset Email"
-                      : isSignUp
-                      ? "Sign Up"
-                      : "Sign In"}
+                    {isForgotPassword ? "Send Reset Email" : "Sign In"}
                   </Text>
                 )}
               </TouchableOpacity>
 
-              {!isForgotPassword && !isSignUp && (
+              {!isForgotPassword && (
                 <TouchableOpacity
                   style={styles.forgotPasswordButton}
-                  onPress={toggleForgotPassword}
+                  onPress={() => setIsForgotPassword(true)}
                   disabled={isAuthenticating}
                 >
                   <Text style={styles.forgotPasswordText}>
@@ -434,23 +339,23 @@ export default function AuthScreen() {
 
               <TouchableOpacity
                 style={styles.switchButton}
-                onPress={isForgotPassword ? toggleForgotPassword : toggleMode}
+                onPress={() => {
+                  if (isForgotPassword) {
+                    setIsForgotPassword(false);
+                    setEmail("");
+                  } else {
+                    router.replace("/auth");
+                  }
+                }}
                 disabled={isAuthenticating}
               >
                 <Text style={styles.switchText}>
                   {isForgotPassword
                     ? "Back to Sign In"
-                    : isSignUp
-                    ? "Already have an account? Sign In"
                     : "Don't have an account? Sign Up"}
                 </Text>
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.footerText}>
-              Your data is stored securely{"\n"}
-              and synced across devices
-            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -468,6 +373,17 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  backButton: {
+    position: "absolute",
+    top: 50,
+    left: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -634,12 +550,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     marginTop: 16,
-  },
-  footerText: {
-    color: "rgba(255, 255, 255, 0.8)",
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 30,
-    lineHeight: 20,
   },
 });

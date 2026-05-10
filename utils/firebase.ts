@@ -32,10 +32,26 @@ export async function initializeFirebase(): Promise<boolean> {
   if (!firebaseAvailable) return false;
 
   try {
-    // Try to import native Firebase modules
-    const firebaseApp = await import("@react-native-firebase/app");
-    const firebaseAuthModule = await import("@react-native-firebase/auth");
-    const firestoreModule = await import("@react-native-firebase/firestore");
+    // Try to import native Firebase modules with better error handling
+    let firebaseApp: any;
+    let firebaseAuthModule: any;
+    let firestoreModule: any;
+
+    try {
+      firebaseApp = await import("@react-native-firebase/app");
+      firebaseAuthModule = await import("@react-native-firebase/auth");
+      firestoreModule = await import("@react-native-firebase/firestore");
+    } catch (importError: any) {
+      // Import failed - likely in Expo Go
+      console.warn(
+        "Firebase native modules not available. " +
+          "This is normal if you're running in Expo Go. " +
+          "The app will use Firebase REST API instead.\n" +
+          "For native modules, create a development build: npx expo run:android or npx expo run:ios"
+      );
+      firebaseAvailable = false;
+      return false;
+    }
 
     // Check if the native module is available (not running in Expo Go)
     const app = firebaseApp.default as any;
@@ -108,6 +124,9 @@ export function getFirebaseAuth() {
 export function getFirestore() {
   return firestore;
 }
+
+// Export Firestore instance for direct use (compatible with firebase/firestore)
+export const db = firestore ? firestore() : null;
 
 export function isFirebaseReady(): boolean {
   return isFirebaseInitialized && firebaseAuth !== null && firestore !== null;

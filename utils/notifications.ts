@@ -71,6 +71,7 @@ export async function scheduleMedicationReminder(
           data: { medicationId: medication.id },
         },
         trigger: {
+          channelId: Platform.OS === "android" ? "default" : undefined,
           hour: hours,
           minute: minutes,
           repeats: true,

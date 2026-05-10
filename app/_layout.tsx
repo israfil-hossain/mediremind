@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { RevenueCatAuthProvider } from "../providers/RevenueCatAuthProvider";
+import { StripeAuthProvider } from "../providers/StripeProvider";
 import { AuthProvider } from "../contexts/AuthContext";
 import { ThemeProvider, useTheme } from "../contexts/ThemeContext";
 
@@ -78,9 +78,9 @@ export default function Layout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <RevenueCatAuthProvider>
+        <StripeAuthProvider>
           <RootLayoutContent />
-        </RevenueCatAuthProvider>
+        </StripeAuthProvider>
       </AuthProvider>
     </ThemeProvider>
   );

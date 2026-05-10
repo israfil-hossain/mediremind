@@ -1,4 +1,4 @@
-import { getMedications, getDoseHistory, DoseHistory, Medication } from "./storage";
+import { getMedications, getDoseHistory} from "./storage";
 import { isPremium } from "./subscription";
 
 export interface AdherenceStats {
@@ -66,7 +66,7 @@ export async function exportDataAsText(): Promise<string> {
       getDoseHistory(),
     ]);
 
-    let exportText = "MedRemind Data Export\n";
+    let exportText = "MediRemind Data Export\n";
     exportText += "Generated: " + new Date().toLocaleString() + "\n\n";
     exportText += "=".repeat(50) + "\n\n";
 

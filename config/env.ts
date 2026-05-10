@@ -6,9 +6,9 @@ export const ENV = {
   FIREBASE_WEB_CLIENT_ID:
     process.env.EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID || "",
 
-  // RevenueCat API Key
-  REVENUECAT_API_KEY:
-    process.env.EXPO_PUBLIC_REVENUECAT_API_KEY || "",
+  // Stripe Publishable Key
+  STRIPE_PUBLISHABLE_KEY:
+    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "",
 
   // Firebase Project Config
   FIREBASE_API_KEY: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "",
@@ -18,6 +18,14 @@ export const ENV = {
   FIREBASE_MESSAGING_SENDER_ID:
     process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
   FIREBASE_APP_ID: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "",
+
+  // AdMob Configuration
+  ADMOB_ANDROID_APP_ID: process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID || "",
+  ADMOB_IOS_APP_ID: process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID || "",
+  ADMOB_ANDROID_BANNER_ID: process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID || "",
+  ADMOB_IOS_BANNER_ID: process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_ID || "",
+  ADMOB_ANDROID_INTERSTITIAL_ID: process.env.EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL_ID || "",
+  ADMOB_IOS_INTERSTITIAL_ID: process.env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL_ID || "",
 
   // Development: Override premium status for testing
   DEV_IS_PREMIUM: process.env.EXPO_PUBLIC_DEV_IS_PREMIUM === "true",

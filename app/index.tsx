@@ -42,13 +42,13 @@ export default function SplashScreen() {
         // User is signed in, go to home
         router.replace("/(tabs)");
       } else {
-        // User is not signed in, show auth screen
-        router.replace("/auth");
+        // User is not signed in, show login screen
+        router.replace("/auth/login");
       }
     } catch (error) {
       console.error("Auth check error:", error);
-      // On error, show auth screen
-      router.replace("/auth");
+      // On error, show login screen
+      router.replace("/auth/login");
     } finally {
       setIsCheckingAuth(false);
     }
@@ -66,7 +66,7 @@ export default function SplashScreen() {
         ]}
       >
         <Ionicons name="medical" size={100} color="white" />
-        <Text style={styles.appName}>MedRemind</Text>
+        <Text style={styles.appName}>MediRemind</Text>
       </Animated.View>
     </View>
   );

@@ -27,10 +27,13 @@ import {
   FamilyProfile,
 } from "../../../utils/familyProfiles";
 import { useTheme } from "../../../contexts/ThemeContext";
+import { useAuth } from "../../../contexts/AuthContext";
+import MyPatientsScreen from "../../../components/MyPatientsScreen";
+import AdBanner from "../../../components/AdBanner";
 
 type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
 
-export default function HistoryScreen() {
+function PatientHistoryScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const [history, setHistory] = useState<EnrichedDoseHistory[]>([]);
@@ -501,6 +504,9 @@ export default function HistoryScreen() {
               <Text style={styles.clearDataText}>Clear All Data</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Banner Ad for Free Users */}
+          <AdBanner />
         </ScrollView>
       </View>
     </View>
@@ -891,3 +897,14 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
+// Main component that shows different screens based on role
+export default function HistoryScreen() {
+  const { userRole } = useAuth();
+
+  if (userRole === "doctor") {
+    return <MyPatientsScreen />;
+  }
+
+  return <PatientHistoryScreen />;
+}

@@ -1,9 +1,11 @@
 module.exports = {
   expo: {
-    name: "mediremind",
+    name: "MediRemind",
+    displayName: "MediRemind - Medicine Reminder",
     slug: "mediremind",
     version: "1.0.0",
     orientation: "portrait",
+    description: "Never miss your medication again! MediRemind helps you manage prescriptions, set reminders, track your medication history, and stay connected with your healthcare provider. Perfect for managing daily medications, vitamins, and supplements.",
     extra: {
       eas: {
         projectId: "910976ca-6231-4fd6-aa21-7c9c7e9758b2"
@@ -55,6 +57,16 @@ module.exports = {
         "@react-native-google-signin/google-signin",
         {
           iosUrlScheme: "com.googleusercontent.apps.582942360667-ns8qt1p3pp0sshmujc09o1mve0rfjet5",
+        },
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          androidAppId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID || "ca-app-pub-3940256099942544~3347511713",
+          iosAppId: process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID || "ca-app-pub-3940256099942544~1458002511",
+          maxAdContentRating: "G", // General audience
+          tagForChildDirectedTreatment: false,
+          tagForUnderAgeOfConsent: false,
         },
       ],
     ],

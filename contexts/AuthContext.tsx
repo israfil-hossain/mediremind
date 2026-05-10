@@ -6,6 +6,7 @@ import React, {
   ReactNode,
 } from "react";
 import { AppState, AppStateStatus } from "react-native";
+import { useRouter } from "expo-router";
 import {
   FirebaseUser,
   getCurrentUser,
@@ -28,15 +29,22 @@ import {
   stopMedicationMonitoring,
 } from "../utils/medicationMonitoring";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getUserProfile, UserProfile } from "../utils/userManagement";
+import { checkSubscriptionStatus } from "../utils/stripe";
+import { isPremium as checkIsPremium } from "../utils/subscription";
+import PaywallModal from "../components/PaywallModal";
 
 const MEDICATIONS_KEY = "@medications";
 const DOSE_HISTORY_KEY = "@dose_history";
 
 interface AuthContextType {
   user: FirebaseUser | null;
+  userProfile: UserProfile | null;
+  userRole: "doctor" | "patient" | null;
   isLoading: boolean;
   isOnline: boolean;
   lastSyncTime: string | null;
+  showPaywall: boolean;
   signIn: () => Promise<void>;
   logOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -47,21 +55,42 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userRole, setUserRole] = useState<"doctor" | "patient" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const profile = await getUserProfile(userId);
+      if (profile) {
+        setUserProfile(profile);
+        setUserRole(profile.role);
+      }
+    } catch (error) {
+      // Error loading user profile
+    }
+  };
 
   const refreshUser = async () => {
     try {
       const existingUser = await getCurrentUser();
       setUser(existingUser);
 
+      // Load user profile
+      if (existingUser) {
+        await loadUserProfile(existingUser.uid);
+      }
+
       // Also update sync time
       const syncTime = await getLastSyncTimestamp();
       setLastSyncTime(syncTime);
     } catch (error) {
-      console.error("Error refreshing user:", error);
+      // Error refreshing user
     }
   };
 
@@ -75,15 +104,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await initializeFirebase();
 
         // Configure Google Sign-In (uses ENV.FIREBASE_WEB_CLIENT_ID)
-        await configureGoogleSignIn();
+        // Wrapped in try-catch to prevent errors if package not installed
+        try {
+          await configureGoogleSignIn();
+        } catch (error) {
+          console.log("Google Sign-In not available, skipping configuration");
+        }
 
         // Check for existing user
         const existingUser = await getCurrentUser();
         if (mounted) {
           setUser(existingUser);
 
-          // Start medication monitoring if user is logged in
+          // Load user profile
           if (existingUser) {
+            await loadUserProfile(existingUser.uid);
             startMedicationMonitoring();
           }
         }
@@ -150,14 +185,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const firebaseUser = await signInWithGoogle();
       setUser(firebaseUser);
 
+      // Load user profile
+      await loadUserProfile(firebaseUser.uid);
+
       // Update last sync time
       const syncTime = await getLastSyncTimestamp();
       setLastSyncTime(syncTime);
 
       // Start medication monitoring
       startMedicationMonitoring();
+
+      // Check if user is premium, show paywall if not
+      try {
+        const isUserPremium = await checkIsPremium();
+
+        if (!isUserPremium) {
+          // Show paywall modal after a short delay to let the user settle in
+          setTimeout(() => {
+            setShowPaywall(true);
+          }, 1500);
+        }
+      } catch (error: any) {
+        console.error("Error checking premium status:", error);
+        // Don't block sign-in if premium check fails
+      }
     } catch (error) {
-      console.error("Sign in error:", error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -172,9 +224,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await signOut();
       setUser(null);
+      setUserProfile(null);
+      setUserRole(null);
       setLastSyncTime(null);
+
+      // Navigate to auth screen
+      router.replace("/auth");
     } catch (error) {
-      console.error("Log out error:", error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -229,9 +285,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        userProfile,
+        userRole,
         isLoading,
         isOnline,
         lastSyncTime,
+        showPaywall,
         signIn,
         logOut,
         refreshUser,
@@ -240,6 +299,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onSuccess={() => setShowPaywall(false)}
+      />
     </AuthContext.Provider>
   );
 }

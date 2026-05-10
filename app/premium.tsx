@@ -8,15 +8,25 @@ import {
   Dimensions,
   Platform,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import PurchasesUI from "react-native-purchases-ui";
-import { useRevenueCat } from "../hooks/useRevenueCat";
-import { isTestMode, isRunningInExpoGo } from "../utils/revenuecat";
+import { useStripe } from "../hooks/useStripe";
+import { StripePlanType } from "../utils/stripe";
 
 const { width } = Dimensions.get("window");
+
+const MONTHLY_PRICE = 9.99;
+const YEARLY_MONTHLY_PRICE = 9.99;
+const YEARLY_DISCOUNT = 0.20;
+const MONTHS_IN_YEAR = 12;
+const LIFETIME_PRICE = 299;
+
+const yearlyOriginalPrice = YEARLY_MONTHLY_PRICE * MONTHS_IN_YEAR;
+const yearlyDiscountedPrice = yearlyOriginalPrice * (1 - YEARLY_DISCOUNT);
+const yearlySavings = yearlyOriginalPrice - yearlyDiscountedPrice;
 
 const PREMIUM_FEATURES = [
   {
@@ -55,20 +65,12 @@ const PREMIUM_FEATURES = [
     description: "Enjoy a clean, distraction-free interface",
   },
   {
-    icon: "star-outline",
-    title: "Priority Support",
-    description: "Get priority customer support when you need help",
-  },
-];
-
-const FAMILY_CARE_FEATURES = [
-  {
     icon: "people-outline",
-    title: "Up to 5 Family Members",
+    title: "Family Care (Up to 5 Members)",
     description: "Manage medications for your whole family",
   },
   {
-    icon: "notifications-outline",
+    icon: "notifications-off-outline",
     title: "Missed Dose Alerts",
     description: "Get notified if a family member misses a dose",
   },
@@ -77,103 +79,57 @@ const FAMILY_CARE_FEATURES = [
     title: "Caregiver Dashboard",
     description: "Unified view of all family members' medications",
   },
-  {
-    icon: "chatbubbles-outline",
-    title: "Family Communication",
-    description: "In-app messaging and shared reports",
-  },
 ];
 
 export default function PremiumScreen() {
   const router = useRouter();
-  const [subscriptionType, setSubscriptionType] = useState<"premium" | "family">("premium");
-  const { isPro, loading, offerings } = useRevenueCat();
-  const [paywallLoading, setPaywallLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<StripePlanType>("yearly");
+  const { isPro, loading, subscribe, cancelSubscription } = useStripe();
+  const [purchaseLoading, setPurchaseLoading] = useState(false);
 
-  const features = subscriptionType === "premium" ? PREMIUM_FEATURES : FAMILY_CARE_FEATURES;
-  const hasOfferings = offerings && offerings.availablePackages && offerings.availablePackages.length > 0;
-
-  const presentPaywall = async () => {
+  const handleSubscribe = async () => {
     try {
-      setPaywallLoading(true);
-      console.log("Opening RevenueCat paywall...");
+      setPurchaseLoading(true);
+      const success = await subscribe(selectedPlan);
 
-      const result = await PurchasesUI.presentPaywall();
-      console.log("Paywall result:", result);
-
-      // Check if paywall was not presented (Preview API mode)
-      if (result === "NOT_PRESENTED") {
-        const isExpoGo = isRunningInExpoGo();
-
-        Alert.alert(
-          isExpoGo ? "Expo Go Limitation" : "Development Mode",
-          isExpoGo
-            ? "Paywall UI is not available in Expo Go.\n\n" +
-              "To test subscriptions:\n" +
-              "1. Create a development build: npx expo run:android\n" +
-              "2. Or wait until production deployment\n\n" +
-              "RevenueCat requires native code which Expo Go doesn't support."
-            : "RevenueCat is running in test mode. The paywall cannot be displayed.\n\n" +
-              "To enable subscriptions:\n" +
-              "1. Configure products in RevenueCat Dashboard\n" +
-              "2. Create an offering named 'default'\n" +
-              "3. Add subscription products to the offering",
-          [
-            { text: "OK" }
-          ]
-        );
-        return;
-      }
-
-      if (result?.customerInfo?.entitlements.active["flowentech Premium"]) {
+      if (success) {
         Alert.alert("Welcome!", "Your Premium access is now active.");
         router.back();
-      } else {
-        console.log("Paywall closed without purchase");
       }
     } catch (e: any) {
-      console.error("Paywall error:", e);
+      console.error("Purchase error:", e);
 
-      if (e.code === "PURCHASE_CANCELLED") {
-        console.log("User cancelled purchase");
-        return;
-      }
-
-      // Show more detailed error to help debug
-      let errorMessage = "We couldn't open the purchase screen.";
-
-      if (e.message?.includes("offering") || e.message?.includes("not found")) {
-        errorMessage = "No subscription plans are currently available. Please contact support.";
-      } else if (e.message?.includes("network") || e.message?.includes("connection")) {
+      let errorMessage = "Something went wrong. Please try again.";
+      if (e.message?.includes("network") || e.message?.includes("connection")) {
         errorMessage = "Network error. Please check your internet connection and try again.";
-      } else if (e.code === "CONFIGURATION_ERROR") {
-        errorMessage = "Subscription service is not configured. Please contact support.";
       }
 
-      Alert.alert(
-        "Cannot Open Purchase Screen",
-        `${errorMessage}\n\nError: ${e.message || e.code || "Unknown error"}`,
-        [
-          { text: "OK" }
-        ]
-      );
+      Alert.alert("Payment Failed", errorMessage, [{ text: "OK" }]);
     } finally {
-      setPaywallLoading(false);
+      setPurchaseLoading(false);
     }
   };
 
-  const presentCustomerCenter = async () => {
-    try {
-      console.log("Opening RevenueCat Customer Center...");
-      await PurchasesUI.presentCustomerCenter();
-    } catch (e: any) {
-      console.error("Customer Center error:", e);
-      Alert.alert(
-        "Cannot Open Customer Center",
-        `Unable to open the subscription manager.\n\nError: ${e.message || e.code || "Unknown error"}`,
-        [{ text: "OK" }]
-      );
-    }
+  const handleCancelSubscription = async () => {
+    Alert.alert(
+      "Cancel Subscription",
+      "Are you sure you want to cancel? You'll keep access until the end of your current billing period.",
+      [
+        { text: "Keep Subscription", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await cancelSubscription();
+              Alert.alert("Cancelled", "Your subscription has been cancelled.");
+            } catch (e: any) {
+              Alert.alert("Error", e.message || "Could not cancel subscription.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -193,9 +149,7 @@ export default function PremiumScreen() {
           >
             <Ionicons name="chevron-back" size={28} color="#1a8e2d" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {subscriptionType === "premium" ? "Premium" : "Family Care"}
-          </Text>
+          <Text style={styles.headerTitle}>Premium</Text>
         </View>
 
         {isPro && !loading && (
@@ -205,59 +159,74 @@ export default function PremiumScreen() {
           </View>
         )}
 
-        {isRunningInExpoGo() && !isPro && (
-          <View style={styles.expoGoBadge}>
-            <Ionicons name="warning" size={20} color="#FF9800" />
-            <Text style={styles.expoGoBadgeText}>
-              Running in Expo Go: Paywall UI is disabled. Create a development build to test subscriptions.
-              {"\n\n"}Run: npx expo run:android
-            </Text>
-          </View>
-        )}
-
         <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
         >
-          {/* Subscription Type Toggle */}
-          <View style={styles.toggleContainer}>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                subscriptionType === "premium" && styles.toggleButtonActive,
-              ]}
-              onPress={() => setSubscriptionType("premium")}
-            >
-              <Text
+          {/* Pricing Cards */}
+          <View style={styles.pricingContainer}>
+            <Text style={styles.pricingTitle}>Choose Your Plan</Text>
+            <View style={styles.plansContainer}>
+              {/* Monthly Plan */}
+              <TouchableOpacity
                 style={[
-                  styles.toggleText,
-                  subscriptionType === "premium" && styles.toggleTextActive,
+                  styles.planCard,
+                  selectedPlan === "monthly" && styles.planCardSelected,
                 ]}
+                onPress={() => setSelectedPlan("monthly")}
               >
-                Premium
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.toggleButton,
-                subscriptionType === "family" && styles.toggleButtonActive,
-              ]}
-              onPress={() => setSubscriptionType("family")}
-            >
-              <Text
+                <Text style={styles.planName}>Monthly</Text>
+                <Text style={styles.planPrice}>${MONTHLY_PRICE}</Text>
+                <Text style={styles.planPeriod}>per month</Text>
+              </TouchableOpacity>
+
+              {/* Yearly Plan - Recommended */}
+              <TouchableOpacity
                 style={[
-                  styles.toggleText,
-                  subscriptionType === "family" && styles.toggleTextActive,
+                  styles.planCard,
+                  selectedPlan === "yearly" && styles.planCardSelected,
+                  styles.planCardRecommended,
                 ]}
+                onPress={() => setSelectedPlan("yearly")}
               >
-                Family Care
-              </Text>
-            </TouchableOpacity>
+                <View style={styles.recommendedBadge}>
+                  <Text style={styles.recommendedText}>SAVE 20%</Text>
+                </View>
+                <Text style={styles.planName}>Yearly</Text>
+                <Text style={styles.planPrice}>${yearlyDiscountedPrice.toFixed(2)}</Text>
+                <Text style={styles.planPeriod}>per year</Text>
+                <View style={styles.savingsContainer}>
+                  <Text style={styles.planSavings}>Save ${yearlySavings.toFixed(2)}</Text>
+                  <Text style={styles.planOriginalPrice}>${yearlyOriginalPrice.toFixed(2)}</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Lifetime Plan */}
+              <TouchableOpacity
+                style={[
+                  styles.planCard,
+                  selectedPlan === "lifetime" && styles.planCardSelected,
+                  styles.planCardLifetime,
+                ]}
+                onPress={() => setSelectedPlan("lifetime")}
+              >
+                <View style={styles.lifetimeBadge}>
+                  <Text style={styles.lifetimeBadgeText}>BEST VALUE</Text>
+                </View>
+                <Text style={styles.planName}>Lifetime</Text>
+                <Text style={styles.planPrice}>${LIFETIME_PRICE}</Text>
+                <Text style={styles.planPeriod}>one-time payment</Text>
+                <View style={styles.savingsContainer}>
+                  <Text style={styles.planSavings}>Pay once, own forever</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Features List */}
           <View style={styles.featuresContainer}>
-            {features.map((feature, index) => (
+            <Text style={styles.featuresTitle}>Premium Features</Text>
+            {PREMIUM_FEATURES.map((feature, index) => (
               <View key={index} style={styles.featureItem}>
                 <View style={styles.featureIcon}>
                   <Ionicons name={feature.icon as any} size={24} color="#1a8e2d" />
@@ -270,21 +239,27 @@ export default function PremiumScreen() {
             ))}
           </View>
 
-          {/* Purchase Button (RevenueCat Paywall) */}
+          {/* Purchase Button */}
           {!isPro && (
             <TouchableOpacity
-              style={[styles.purchaseButton, paywallLoading && styles.purchaseButtonDisabled]}
-              onPress={presentPaywall}
-              disabled={paywallLoading}
+              style={[styles.purchaseButton, purchaseLoading && styles.purchaseButtonDisabled]}
+              onPress={handleSubscribe}
+              disabled={purchaseLoading}
             >
               <LinearGradient
                 colors={["#1a8e2d", "#146922"]}
                 style={styles.purchaseButtonGradient}
               >
-                <Text style={styles.purchaseButtonText}>
-                  {paywallLoading ? "Opening..." : "View Plans & Start Trial"}
-                </Text>
-                <Text style={styles.purchaseButtonSubtext}>Managed by App Store / Play Store</Text>
+                {purchaseLoading ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.purchaseButtonText}>
+                      {selectedPlan === "lifetime" ? "Get Lifetime Access" : "Subscribe Now"}
+                    </Text>
+                    <Text style={styles.purchaseButtonSubtext}>Secure payment via Stripe</Text>
+                  </>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           )}
@@ -297,18 +272,17 @@ export default function PremiumScreen() {
             </Text>
           </View>
 
-          {/* Manage / Restore */}
-          <View style={styles.manageContainer}>
-            <Text style={styles.manageTitle}>Manage or Restore</Text>
-            <View style={styles.manageButtons}>
-              <TouchableOpacity style={styles.manageButton} onPress={presentCustomerCenter}>
-                <Text style={styles.manageButtonText}>Open Customer Center</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.manageButton} onPress={presentPaywall}>
-                <Text style={styles.manageButtonText}>Restore / Change Plan</Text>
-              </TouchableOpacity>
+          {/* Manage Subscription */}
+          {isPro && (
+            <View style={styles.manageContainer}>
+              <Text style={styles.manageTitle}>Manage Subscription</Text>
+              <View style={styles.manageButtons}>
+                <TouchableOpacity style={styles.manageButton} onPress={handleCancelSubscription}>
+                  <Text style={styles.manageButtonText}>Cancel Subscription</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -372,90 +346,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 8,
   },
-  expoGoBadge: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#FFF3E0",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FFE0B2",
-  },
-  expoGoBadgeText: {
-    color: "#E65100",
-    fontSize: 13,
-    marginLeft: 8,
-    flex: 1,
-    lineHeight: 20,
-  },
-  testModeBadge: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#E3F2FD",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#BBDEFB",
-  },
-  testModeBadgeText: {
-    color: "#1565C0",
-    fontSize: 13,
-    marginLeft: 8,
-    flex: 1,
-    lineHeight: 18,
-  },
-  warningBadge: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#FFF3E0",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FFE0B2",
-  },
-  warningBadgeText: {
-    color: "#E65100",
-    fontSize: 13,
-    marginLeft: 8,
-    flex: 1,
-    lineHeight: 18,
-  },
   scrollView: {
     flex: 1,
-  },
-  toggleContainer: {
-    flexDirection: "row",
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 4,
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  toggleButtonActive: {
-    backgroundColor: "#1a8e2d",
-  },
-  toggleText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#666",
-  },
-  toggleTextActive: {
-    color: "white",
   },
   featuresContainer: {
     paddingHorizontal: 20,
@@ -505,9 +397,11 @@ const styles = StyleSheet.create({
   plansContainer: {
     flexDirection: "row",
     gap: 12,
+    flexWrap: "wrap",
   },
   planCard: {
     flex: 1,
+    minWidth: width / 3 - 20,
     backgroundColor: "white",
     borderRadius: 16,
     padding: 16,
@@ -522,6 +416,23 @@ const styles = StyleSheet.create({
   },
   planCardRecommended: {
     borderColor: "#FF9800",
+  },
+  planCardLifetime: {
+    borderColor: "#1a8e2d",
+    backgroundColor: "#F1F8F4",
+  },
+  lifetimeBadge: {
+    position: "absolute",
+    top: -8,
+    backgroundColor: "#1a8e2d",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  lifetimeBadgeText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "700",
   },
   recommendedBadge: {
     position: "absolute",
@@ -554,10 +465,25 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   planSavings: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#4CAF50",
     fontWeight: "600",
     marginTop: 4,
+  },
+  savingsContainer: {
+    marginTop: 8,
+    alignItems: "center",
+  },
+  planOriginalPrice: {
+    fontSize: 11,
+    color: "#999",
+    textDecorationLine: "line-through",
+  },
+  featuresTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#333",
+    marginBottom: 16,
   },
   purchaseButton: {
     borderRadius: 16,

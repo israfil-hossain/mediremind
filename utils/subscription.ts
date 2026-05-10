@@ -5,7 +5,7 @@ const SUBSCRIPTION_KEY = "@subscription";
 const SUBSCRIPTION_TYPE_KEY = "@subscription_type";
 const SUBSCRIPTION_EXPIRY_KEY = "@subscription_expiry";
 
-export type SubscriptionType = "free" | "premium_monthly" | "premium_yearly" | "premium_lifetime" | "family_care_monthly" | "family_care_yearly" | "family_care_lifetime";
+export type SubscriptionType = "free" | "premium_monthly" | "premium_yearly" | "premium_lifetime";
 
 export interface Subscription {
   type: SubscriptionType;
@@ -26,7 +26,7 @@ export async function getSubscription(): Promise<Subscription> {
       // Check if subscription is still valid
       if (subscription.expiryDate) {
         const expiry = new Date(subscription.expiryDate);
-        if (expiry < new Date() && subscription.type !== "free" && subscription.type !== "premium_lifetime" && subscription.type !== "family_care_lifetime") {
+        if (expiry < new Date() && subscription.type !== "free") {
           // Subscription expired, revert to free
           return {
             type: "free",
@@ -65,7 +65,6 @@ export async function setSubscription(subscription: Subscription): Promise<void>
 export async function isPremium(): Promise<boolean> {
   // Development override: Test premium features without subscription
   if (__DEV__ && ENV.DEV_IS_PREMIUM) {
-    console.log("🔧 [DEV] Premium override enabled via EXPO_PUBLIC_DEV_IS_PREMIUM");
     return true;
   }
 
@@ -74,19 +73,8 @@ export async function isPremium(): Promise<boolean> {
 }
 
 export async function isFamilyCare(): Promise<boolean> {
-  // Development override: Test family care features without subscription
-  if (__DEV__ && ENV.DEV_IS_PREMIUM) {
-    console.log("🔧 [DEV] Family Care override enabled via EXPO_PUBLIC_DEV_IS_PREMIUM");
-    return true;
-  }
-
-  const subscription = await getSubscription();
-  return (
-    (subscription.type === "family_care_monthly" ||
-      subscription.type === "family_care_yearly" ||
-      subscription.type === "family_care_lifetime") &&
-    subscription.isActive
-  );
+  // Family care features are now included in Premium
+  return await isPremium();
 }
 
 export async function canAddMedication(currentCount: number): Promise<boolean> {
@@ -155,7 +143,7 @@ export async function canUseAdvancedAnalytics(): Promise<boolean> {
   return subscription.type !== "free" && subscription.isActive;
 }
 
-// Purchase subscription (mock implementation - integrate with RevenueCat/Stripe in production)
+// Purchase subscription (local storage update — actual payment handled by Stripe)
 export async function purchaseSubscription(
   type: Exclude<SubscriptionType, "free">,
   isTrial: boolean = false
@@ -172,8 +160,10 @@ export async function purchaseSubscription(
     const expiry = new Date(now);
     expiry.setFullYear(expiry.getFullYear() + 1);
     expiryDate = expiry.toISOString();
+  } else if (type.includes("lifetime")) {
+    // Lifetime has no expiry date
+    expiryDate = undefined;
   }
-  // Lifetime subscriptions have no expiry
 
   const trialEndDate = isTrial
     ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
