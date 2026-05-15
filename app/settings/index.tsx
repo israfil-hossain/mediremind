@@ -14,8 +14,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
+import { useTheme } from "../../contexts/ThemeContext";
 
 export default function SettingsScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
   const {
     user,
@@ -323,7 +326,7 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -353,7 +356,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 20,
@@ -365,13 +368,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 12,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 16,
     shadowColor: "#000",
@@ -405,11 +408,11 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
   },
   userEmail: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 2,
   },
   statusBadge: {
@@ -440,7 +443,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: "500",
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   syncInfo: {
     flexDirection: "row",
@@ -453,7 +456,7 @@ const styles = StyleSheet.create({
   },
   syncText: {
     fontSize: 13,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginLeft: 8,
   },
   buttonGroup: {
@@ -505,13 +508,13 @@ const styles = StyleSheet.create({
   signInTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginTop: 16,
     marginBottom: 8,
   },
   signInDescription: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     textAlign: "center",
     lineHeight: 20,
     marginBottom: 24,
@@ -523,7 +526,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: theme.colors.border,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 24,
@@ -541,14 +544,14 @@ const styles = StyleSheet.create({
   googleButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
   },
   infoItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomColor: theme.colors.border,
   },
   infoText: {
     flex: 1,
@@ -557,11 +560,11 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
   },
   infoDescription: {
     fontSize: 13,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 2,
   },
 });

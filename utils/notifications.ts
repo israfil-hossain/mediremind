@@ -2,17 +2,32 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { Medication } from "./storage";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+const isExpoGo = process.env.EXPO_RUNTIME_VERSION === undefined;
+
+if (!isExpoGo) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
+
+export function areNotificationsAvailable(): boolean {
+  return !isExpoGo;
+}
 
 export async function registerForPushNotificationsAsync(): Promise<
   string | null
 > {
+  if (isExpoGo) {
+    console.log("Push notifications not available in Expo Go");
+    return null;
+  }
+
   let token: string | null = null;
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -50,6 +65,11 @@ export async function registerForPushNotificationsAsync(): Promise<
 export async function scheduleMedicationReminder(
   medication: Medication
 ): Promise<string | undefined> {
+  if (isExpoGo) {
+    console.log("Notifications not available in Expo Go");
+    return undefined;
+  }
+
   if (!medication.reminderEnabled) return;
 
   try {

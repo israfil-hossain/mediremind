@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can only read/write their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Connections can only be read by involved parties (doctor or patient)
+    match /connections/{connectionId} {
+      allow read: if request.auth != null &&
+        (resource.data.data().doctorId == request.auth.uid ||
+         resource.data.data().patientId == request.auth.uid);
+      allow write: if request.auth != null &&
+        (request.resource.data.doctorId == request.auth.uid ||
+         request.resource.data.patientId == request.auth.uid);
+    }
+
+    // Invitations can only be created by doctor and read by doctor or patient by email
+    match /invitations/{invitationId} {
+      allow read: if request.auth != null &&
+        (resource.data.data().doctorId == request.auth.uid ||
+         resource.data.data().patientId == request.auth.uid);
+      allow create: if request.auth != null && request.resource.data.doctorId == request.auth.uid;
+    }
+
+    // Prescriptions can only be read by creator (doctor) or patient
+    match /prescriptions/{prescriptionId} {
+      allow read: if request.auth != null &&
+        (resource.data.data().createdBy == request.auth.uid ||
+         resource.data.data().patientId == request.auth.uid);
+      allow write: if request.auth != null &&
+        (resource.data.data().createdBy == request.auth.uid ||
+         resource.data.data().patientId == request.auth.uid);
+    }
+
+    // Notifications can only be read by recipient
+    match /notifications/{notificationId} {
+      allow read, write, delete: if request.auth != null &&
+        resource.data.data().userId == request.auth.uid;
+    }
+
+    // Appointments can only be read by doctor or patient involved
+    match /appointments/{appointmentId} {
+      allow read: if request.auth != null &&
+        (resource.data.data().doctorId == request.auth.uid ||
+         resource.data.data().patientId == request.auth.uid);
+      allow write: if request.auth != null &&
+        (resource.data.data().doctorId == request.auth.uid ||
+         resource.data.data().patientId == request.auth.uid);
+    }
+  }
+}

@@ -18,6 +18,7 @@ import {
 } from "../../../utils/firebase";
 import { createUserProfile } from "../../../utils/userManagement";
 import { useAuth } from "../../../contexts/AuthContext";
+import { useTheme } from "../../../contexts/ThemeContext";
 
 const MEDICAL_SPECIALTIES = [
   "General Physician",
@@ -44,11 +45,165 @@ const MEDICAL_SPECIALTIES = [
   "Other",
 ];
 
+function createDoctorStyles(theme: any) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+    },
+    content: {
+      flex: 1,
+      padding: 20,
+      paddingTop: 40,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    iconContainer: {
+      width: 100,
+      height: 100,
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      borderRadius: 50,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 20,
+      alignSelf: "center",
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "bold",
+      color: "white",
+      marginBottom: 5,
+      textAlign: "center",
+    },
+    subtitle: {
+      fontSize: 16,
+      color: "rgba(255, 255, 255, 0.9)",
+      marginBottom: 30,
+      textAlign: "center",
+    },
+    card: {
+      backgroundColor: theme.colors.card,
+      borderRadius: 20,
+      padding: 25,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      elevation: 5,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: theme.colors.text,
+      marginTop: 15,
+      marginBottom: 10,
+    },
+    sectionDivider: {
+      height: 1,
+      backgroundColor: theme.colors.border,
+      marginBottom: 15,
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 12,
+      marginBottom: 12,
+      paddingHorizontal: 15,
+      backgroundColor: theme.colors.surface,
+      minHeight: 50,
+    },
+    inputIcon: {
+      marginRight: 10,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: theme.colors.text,
+    },
+    pickerLabel: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      flex: 1,
+    },
+    pickerContainer: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginHorizontal: -5,
+      marginBottom: 15,
+    },
+    specialtyChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: theme.colors.surface,
+      margin: 5,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    specialtyChipActive: {
+      backgroundColor: "#4CAF50",
+      borderColor: "#4CAF50",
+    },
+    specialtyChipText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      fontWeight: "500",
+    },
+    specialtyChipTextActive: {
+      color: "white",
+    },
+    button: {
+      backgroundColor: "#4CAF50",
+      paddingVertical: 15,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 15,
+    },
+    buttonDisabled: {
+      opacity: 0.7,
+    },
+    buttonText: {
+      color: "white",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    errorContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 15,
+      padding: 10,
+      backgroundColor: theme.mode === "dark" ? "rgba(244, 67, 54, 0.1)" : "#ffebee",
+      borderRadius: 8,
+    },
+    errorText: {
+      color: "#f44336",
+      marginLeft: 8,
+      fontSize: 14,
+      flex: 1,
+    },
+  });
+}
+
 export default function DoctorSignupScreen() {
   const router = useRouter();
   const { refreshUser } = useAuth();
+  const { theme } = useTheme();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const styles = createDoctorStyles(theme);
 
   // Personal Information
   const [name, setName] = useState("");
@@ -184,7 +339,7 @@ export default function DoctorSignupScreen() {
               <View style={styles.sectionDivider} />
 
               <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="person-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Full Name *"
@@ -196,7 +351,7 @@ export default function DoctorSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="mail-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Email *"
@@ -210,7 +365,7 @@ export default function DoctorSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="call-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Phone Number *"
@@ -222,7 +377,7 @@ export default function DoctorSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Password *"
@@ -235,7 +390,7 @@ export default function DoctorSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Confirm Password *"
@@ -252,7 +407,7 @@ export default function DoctorSignupScreen() {
               <View style={styles.sectionDivider} />
 
               <View style={styles.inputContainer}>
-                <Ionicons name="card-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="card-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Medical License Number *"
@@ -264,7 +419,7 @@ export default function DoctorSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="medical-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="medical-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <Text style={styles.pickerLabel}>Specialty *</Text>
               </View>
               <View style={styles.pickerContainer}>
@@ -291,7 +446,7 @@ export default function DoctorSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="school-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="school-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Qualifications (e.g., MBBS, MD) *"
@@ -303,7 +458,7 @@ export default function DoctorSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="business-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="business-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Clinic/Hospital Name"
@@ -315,7 +470,7 @@ export default function DoctorSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="location-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="location-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Clinic Address"
@@ -327,7 +482,7 @@ export default function DoctorSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="time-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Years of Experience"
@@ -363,153 +518,3 @@ export default function DoctorSignupScreen() {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    paddingTop: 40,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  iconContainer: {
-    width: 100,
-    height: 100,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-    alignSelf: "center",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "white",
-    marginBottom: 5,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
-    marginBottom: 30,
-    textAlign: "center",
-  },
-  card: {
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 25,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 15,
-    marginBottom: 10,
-  },
-  sectionDivider: {
-    height: 1,
-    backgroundColor: "#ddd",
-    marginBottom: 15,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
-    marginBottom: 12,
-    paddingHorizontal: 15,
-    backgroundColor: "#f9f9f9",
-    minHeight: 50,
-  },
-  inputIcon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#333",
-  },
-  pickerLabel: {
-    fontSize: 16,
-    color: "#666",
-    flex: 1,
-  },
-  pickerContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginHorizontal: -5,
-    marginBottom: 15,
-  },
-  specialtyChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
-    margin: 5,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  specialtyChipActive: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#4CAF50",
-  },
-  specialtyChipText: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
-  },
-  specialtyChipTextActive: {
-    color: "white",
-  },
-  button: {
-    backgroundColor: "#4CAF50",
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 15,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  errorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 15,
-    padding: 10,
-    backgroundColor: "#ffebee",
-    borderRadius: 8,
-  },
-  errorText: {
-    color: "#f44336",
-    marginLeft: 8,
-    fontSize: 14,
-    flex: 1,
-  },
-});

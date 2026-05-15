@@ -1,12 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
-import { InterstitialAd, AdEventType, TestIds } from "react-native-google-mobile-ads";
 import { getInterstitialAdUnitId } from "../utils/ads";
+
+// Lazy load the ads module to avoid crashes in Expo Go or when native modules are missing
+let GoogleMobileAds: any = null;
+try {
+  GoogleMobileAds = require("react-native-google-mobile-ads");
+} catch (e) {
+  console.log("Google Mobile Ads not available in this environment");
+}
 
 /**
  * Interstitial Ad Hook
  *
  * Manages loading and showing interstitial (full-screen) ads.
  * Ads are only shown to free users, not premium users.
+ * Gracefully handles missing native modules (e.g., running in Expo Go).
  *
  * Usage:
  * ```tsx
@@ -31,14 +39,14 @@ export function useInterstitialAd() {
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showAds, setShowAds] = useState(false);
-  const interstitialRef = useRef<InterstitialAd | null>(null);
+  const interstitialRef = useRef<any>(null);
 
   useEffect(() => {
     loadInterstitial();
     return () => {
       // Cleanup
       if (interstitialRef.current) {
-        interstitialRef.current.removeAllListeners();
+        interstitialRef.current.removeAllListeners?.();
       }
     };
   }, []);
@@ -47,8 +55,8 @@ export function useInterstitialAd() {
     try {
       const adUnitId = await getInterstitialAdUnitId();
 
-      if (!adUnitId) {
-        // User is premium, don't show ads
+      if (!adUnitId || !GoogleMobileAds) {
+        // User is premium or native module not available
         setShowAds(false);
         return;
       }
@@ -57,6 +65,8 @@ export function useInterstitialAd() {
       setIsLoading(true);
 
       // Create and load interstitial ad
+      const { InterstitialAd, AdEventType } = GoogleMobileAds;
+
       const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
         requestNonPersonalizedAdsOnly: false,
         keywords: ["health", "medicine", "wellness", "healthcare"],
@@ -75,7 +85,7 @@ export function useInterstitialAd() {
 
       const unsubscribeFailed = interstitial.addAdEventListener(
         AdEventType.FAILED_TO_LOAD,
-        (error) => {
+        (error: any) => {
           console.error("Interstitial ad failed to load:", error);
           setIsReady(false);
           setIsLoading(false);
@@ -109,7 +119,7 @@ export function useInterstitialAd() {
 
   const showAd = async () => {
     if (!showAds) {
-      console.log("User is premium, skipping ad");
+      console.log("User is premium or ads not available, skipping ad");
       return false;
     }
 

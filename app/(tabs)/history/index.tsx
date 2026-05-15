@@ -35,6 +35,7 @@ type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
 
 function PatientHistoryScreen() {
   const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
   const [history, setHistory] = useState<EnrichedDoseHistory[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<
@@ -513,10 +514,10 @@ function PatientHistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.colors.background,
   },
   headerGradient: {
     position: "absolute",
@@ -540,7 +541,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -558,7 +559,7 @@ const styles = StyleSheet.create({
   filtersContainer: {
     paddingHorizontal: 20,
     marginBottom: 20,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.colors.background,
     paddingTop: 10,
   },
   filtersScroll: {
@@ -568,10 +569,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
   },
   filterButtonActive: {
     backgroundColor: "#1a8e2d",
@@ -580,7 +581,7 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   filterTextActive: {
     color: "white",
@@ -588,7 +589,7 @@ const styles = StyleSheet.create({
   historyContainer: {
     flex: 1,
     paddingHorizontal: 20,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.colors.background,
   },
   dateGroup: {
     marginBottom: 25,
@@ -596,18 +597,18 @@ const styles = StyleSheet.create({
   dateHeader: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 12,
   },
   historyCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -626,17 +627,17 @@ const styles = StyleSheet.create({
   medicationName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   medicationDosage: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   timeText: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   statusContainer: {
     alignItems: "flex-end",
@@ -696,12 +697,12 @@ const styles = StyleSheet.create({
   upgradeBannerTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   upgradeBannerDescription: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
   upgradeButton: {
@@ -733,7 +734,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#333",
+    color: theme.colors.text,
   },
   manageButton: {
     fontSize: 14,
@@ -743,14 +744,14 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: "center",
     paddingVertical: 40,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
   },
   emptyStateText: {
     fontSize: 16,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 12,
     marginBottom: 20,
   },
@@ -772,12 +773,12 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     width: "31%",
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     position: "relative",
   },
   activeProfileCard: {
@@ -795,13 +796,13 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     textAlign: "center",
     marginBottom: 2,
   },
   profileRelationship: {
     fontSize: 11,
-    color: "#666",
+    color: theme.colors.textSecondary,
     textAlign: "center",
   },
   activeIndicator: {
@@ -815,33 +816,33 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
   },
   statValue: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#333",
+    color: theme.colors.text,
     marginTop: 8,
   },
   statLabel: {
     fontSize: 12,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   actionCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
   },
   actionIcon: {
     width: 48,
@@ -858,12 +859,12 @@ const styles = StyleSheet.create({
   actionTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 2,
   },
   actionSubtitle: {
     fontSize: 13,
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   infoCard: {
     flexDirection: "row",
@@ -877,7 +878,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#ffffff",
+    backgroundColor: theme.colors.card,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -888,12 +889,12 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   infoDescription: {
     fontSize: 13,
-    color: "#666",
+    color: theme.colors.textSecondary,
     lineHeight: 18,
   },
 });

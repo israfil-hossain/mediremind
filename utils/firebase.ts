@@ -32,6 +32,20 @@ export async function initializeFirebase(): Promise<boolean> {
   if (!firebaseAvailable) return false;
 
   try {
+    // Check if Firebase native module exists BEFORE importing the JS module
+    // This prevents the "RNFBAppModule not found" crash in Expo Go
+    const { NativeModules } = require("react-native");
+    if (!NativeModules.RNFBAppModule) {
+      console.warn(
+        "Firebase native modules not available. " +
+          "This is normal if you're running in Expo Go. " +
+          "The app will use Firebase REST API instead.\n" +
+          "For native modules, create a development build: npx expo run:android or npx expo run:ios"
+      );
+      firebaseAvailable = false;
+      return false;
+    }
+
     // Try to import native Firebase modules with better error handling
     let firebaseApp: any;
     let firebaseAuthModule: any;
@@ -163,7 +177,7 @@ async function setIdToken(token: string | null): Promise<void> {
 }
 
 // Get ID token
-async function getIdToken(): Promise<string | null> {
+export async function getIdToken(): Promise<string | null> {
   try {
     return await AsyncStorage.getItem(ID_TOKEN_KEY);
   } catch {
@@ -309,8 +323,11 @@ export async function signInWithEmail(
 export async function sendPasswordResetEmail(email: string): Promise<void> {
   const apiKey = ENV.FIREBASE_API_KEY;
   if (!apiKey) {
-    throw new Error("Firebase API Key not configured");
+    console.error("Firebase API Key is missing");
+    throw new Error("Firebase API Key not configured. Please check your .env file.");
   }
+
+  console.log("Sending password reset to:", email);
 
   try {
     const resetUrl = `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`;
@@ -326,9 +343,30 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
     });
 
     const data = await response.json();
+    console.log("Password reset response:", data);
 
     if (!response.ok) {
-      throw new Error(data.error?.message || "Failed to send reset email");
+      const errorCode = data.error?.message || "UNKNOWN_ERROR";
+      let errorMessage = "Failed to send reset email";
+
+      switch (errorCode) {
+        case "EMAIL_NOT_FOUND":
+          errorMessage = "This email is not registered. Please sign up first.";
+          break;
+        case "INVALID_EMAIL":
+          errorMessage = "Invalid email address format.";
+          break;
+        case "USER_DISABLED":
+          errorMessage = "This account has been disabled. Contact support.";
+          break;
+        case "TOO_MANY_ATTEMPTS":
+          errorMessage = "Too many attempts. Please try again later.";
+          break;
+        default:
+          errorMessage = data.error?.message || "Failed to send reset email";
+      }
+
+      throw new Error(errorMessage);
     }
   } catch (error: any) {
     console.error("Password reset error:", error);

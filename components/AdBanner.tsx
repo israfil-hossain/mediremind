@@ -1,11 +1,14 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { View, StyleSheet, Dimensions } from "react-native";
-import {
-  BannerAd,
-  BannerAdSize,
-  TestIds,
-} from "react-native-google-mobile-ads";
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet } from "react-native";
 import { getBannerAdUnitId } from "../utils/ads";
+
+// Lazy load the ads module to avoid crashes in Expo Go or when native modules are missing
+let GoogleMobileAds: any = null;
+try {
+  GoogleMobileAds = require("react-native-google-mobile-ads");
+} catch (e) {
+  console.log("Google Mobile Ads not available in this environment");
+}
 
 const AD_HEIGHT = 50; // Standard banner ad height
 
@@ -17,7 +20,7 @@ interface AdBannerProps {
  * AdBanner Component
  *
  * Displays banner ads at the bottom of screens for free users only.
- * Automatically hidden for premium users.
+ * Automatically hidden for premium users and when running in Expo Go.
  *
  * Usage:
  * ```tsx
@@ -53,10 +56,12 @@ export default function AdBanner({ style }: AdBannerProps) {
     }
   };
 
-  // Don't render anything if user is premium or no ad unit ID
-  if (!showAd || !adUnitId) {
+  // Don't render anything if user is premium, no ad unit ID, or native module is missing
+  if (!showAd || !adUnitId || !GoogleMobileAds) {
     return null;
   }
+
+  const { BannerAd, BannerAdSize } = GoogleMobileAds;
 
   return (
     <View style={[styles.container, style]}>
@@ -70,7 +75,7 @@ export default function AdBanner({ style }: AdBannerProps) {
         onAdLoaded={() => {
           console.log("Banner ad loaded");
         }}
-        onAdFailedToLoad={(error) => {
+        onAdFailedToLoad={(error: any) => {
           console.error("Banner ad failed to load:", error);
         }}
         onAdOpened={() => {

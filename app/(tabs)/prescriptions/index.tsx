@@ -28,6 +28,12 @@ import {
   deletePrescription as deleteSharedPrescription,
   getPendingPrescriptions,
 } from "../../../utils/prescriptionManager";
+import { useTheme } from "../../../contexts/ThemeContext";
+import {
+  createAppointment,
+  getPatientAppointments,
+  Appointment,
+} from "../../../utils/appointments";
 
 interface DoctorConnection {
   id: string;
@@ -41,8 +47,10 @@ interface DoctorConnection {
 
 // My Doctor Screen for Patients
 function MyDoctorScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const [connections, setConnections] = useState<DoctorConnection[]>([]);
   const [searchEmail, setSearchEmail] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -50,58 +58,77 @@ function MyDoctorScreen() {
   const [isInviting, setIsInviting] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
-  useEffect(() => {
-    if (!user) return;
+  // Appointment booking state
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState<DoctorConnection | null>(null);
+  const [appointmentDate, setAppointmentDate] = useState("");
+  const [appointmentTime, setAppointmentTime] = useState("");
+  const [appointmentReason, setAppointmentReason] = useState("");
+  const [isBooking, setIsBooking] = useState(false);
+  const [myAppointments, setMyAppointments] = useState<Appointment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-    const initializeAndLoad = async () => {
+  useEffect(() => {
+    loadData();
+  }, [user]);
+
+  const loadData = async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await Promise.all([loadConnections(), loadAppointments()]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadConnections = async () => {
+    if (!user) return [];
+    try {
       await initializeFirebase();
       const firestore = getFirestore();
-      if (!firestore) {
-        console.log("Firestore not initialized");
-        return;
-      }
+      if (!firestore) return [];
 
-      // Listen to connections in real-time
-      const unsubscribe = firestore()
-      .collection("connections")
-      .where("patientId", "==", user.uid)
-      .onSnapshot(async (snapshot) => {
-        const connectionsData: DoctorConnection[] = [];
+      const snapshot = await firestore()
+        .collection("connections")
+        .where("patientId", "==", user.uid)
+        .get();
 
-        for (const docSnap of snapshot.docs) {
-          const connectionData = {
-            id: docSnap.id,
-            ...docSnap.data(),
-          } as DoctorConnection;
-
-          // Fetch doctor profile
-          if (connectionData.doctorId) {
-            const doctorDoc = await firestore()
-              .collection("users")
-              .doc(connectionData.doctorId)
-              .get();
-
-            if (doctorDoc.exists) {
-              connectionData.doctorProfile = doctorDoc.data() as UserProfile;
-            }
+      const connectionsData: DoctorConnection[] = [];
+      for (const docSnap of snapshot.docs) {
+        const connectionData = { id: docSnap.id, ...docSnap.data() } as DoctorConnection;
+        if (connectionData.doctorId) {
+          const doctorDoc = await firestore().collection("users").doc(connectionData.doctorId).get();
+          if (doctorDoc.exists) {
+            connectionData.doctorProfile = doctorDoc.data() as UserProfile;
           }
-
-          connectionsData.push(connectionData);
         }
+        connectionsData.push(connectionData);
+      }
+      setConnections(connectionsData);
+      return connectionsData;
+    } catch (error) {
+      console.error("Error loading connections:", error);
+      return [];
+    }
+  };
 
-        setConnections(connectionsData);
-      });
-
-      return () => unsubscribe();
-    };
-
-    initializeAndLoad();
-  }, [user]);
+  const loadAppointments = async () => {
+    if (!user) return;
+    try {
+      const appointments = await getPatientAppointments(user.uid);
+      setMyAppointments(appointments);
+    } catch (error) {
+      console.error("Error loading appointments:", error);
+    }
+  };
 
   // Load pending prescriptions count
   useEffect(() => {
     if (!user) return;
-
     const loadPendingCount = async () => {
       try {
         const pending = await getPendingPrescriptions(user.uid);
@@ -110,7 +137,6 @@ function MyDoctorScreen() {
         console.error("Error loading pending count:", error);
       }
     };
-
     loadPendingCount();
   }, [user]);
 
@@ -119,18 +145,14 @@ function MyDoctorScreen() {
       Alert.alert("Error", "Please enter a doctor's email");
       return;
     }
-
     await initializeFirebase();
     const firestore = getFirestore();
     if (!firestore) {
       Alert.alert("Error", "Database not initialized");
       return;
     }
-
     try {
       setIsSearching(true);
-
-      // Search for doctor by email
       const doctorSnapshot = await firestore()
         .collection("users")
         .where("email", "==", searchEmail.toLowerCase().trim())
@@ -138,7 +160,6 @@ function MyDoctorScreen() {
         .get();
 
       if (doctorSnapshot.empty) {
-        // Doctor not found, offer to invite
         Alert.alert(
           "Doctor Not Found",
           "This doctor is not registered in the system. Would you like to send an invitation?",
@@ -153,7 +174,6 @@ function MyDoctorScreen() {
       const doctorData = doctorSnapshot.docs[0];
       const doctorId = doctorData.id;
 
-      // Check if connection already exists
       const existingSnapshot = await firestore()
         .collection("connections")
         .where("doctorId", "==", doctorId)
@@ -165,7 +185,6 @@ function MyDoctorScreen() {
         return;
       }
 
-      // Create connection request
       await firestore().collection("connections").add({
         doctorId,
         patientId: user?.uid,
@@ -174,7 +193,6 @@ function MyDoctorScreen() {
         createdAt: firestore.FieldValue.serverTimestamp(),
       });
 
-      // Create notification for doctor
       await firestore().collection("notifications").add({
         userId: doctorId,
         type: "connection_request",
@@ -202,12 +220,9 @@ function MyDoctorScreen() {
       Alert.alert("Error", "Database not initialized");
       return;
     }
-
     try {
       setIsInviting(true);
-
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
       await firestore().collection("invitations").add({
         invitedBy: user?.uid,
         doctorEmail: email.toLowerCase().trim(),
@@ -215,11 +230,7 @@ function MyDoctorScreen() {
         createdAt: firestore.FieldValue.serverTimestamp(),
         expiresAt: firestore.Timestamp.fromDate(expiresAt),
       });
-
-      Alert.alert(
-        "Invitation Sent",
-        `An invitation email will be sent to ${email}`
-      );
+      Alert.alert("Invitation Sent", `An invitation email will be sent to ${email}`);
       setSearchEmail("");
     } catch (error: any) {
       console.error("Error inviting doctor:", error);
@@ -229,18 +240,81 @@ function MyDoctorScreen() {
     }
   };
 
+  const openAppointmentModal = (connection: DoctorConnection) => {
+    setSelectedDoctor(connection);
+    setAppointmentDate("");
+    setAppointmentTime("");
+    setAppointmentReason("");
+    setShowAppointmentModal(true);
+  };
+
+  const handleBookAppointment = async () => {
+    if (!user || !selectedDoctor) return;
+    if (!appointmentDate.trim() || !appointmentTime.trim()) {
+      Alert.alert("Error", "Please select a date and time for the appointment");
+      return;
+    }
+
+    setIsBooking(true);
+    try {
+      await createAppointment({
+        doctorId: selectedDoctor.doctorId,
+        patientId: user.uid,
+        patientName: userProfile?.name || user.email || "Patient",
+        doctorName: selectedDoctor.doctorProfile?.name || "Doctor",
+        date: appointmentDate,
+        time: appointmentTime,
+        reason: appointmentReason || "General consultation",
+        status: "pending",
+      });
+
+      Alert.alert(
+        "Appointment Requested",
+        `Your appointment request with Dr. ${selectedDoctor.doctorProfile?.name || "Doctor"} on ${appointmentDate} at ${appointmentTime} has been sent.`
+      );
+      setShowAppointmentModal(false);
+      loadAppointments();
+    } catch (error: any) {
+      console.error("Error booking appointment:", error);
+      Alert.alert("Error", error.message || "Failed to book appointment");
+    } finally {
+      setIsBooking(false);
+    }
+  };
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Connections will refresh automatically via snapshot listener
-    setTimeout(() => setRefreshing(false), 1000);
+    await loadConnections();
+    await loadAppointments();
+    setRefreshing(false);
   }, []);
 
-  const acceptedConnections = connections.filter((c) => c.status === "accepted");
+const acceptedConnections = connections.filter((c) => c.status === "accepted");
   const pendingConnections = connections.filter((c) => c.status === "pending");
+  const upcomingAppointments = myAppointments
+    .filter((a) => a.status !== "cancelled")
+    .sort((a, b) => new Date(a.date + "T" + a.time).getTime() - new Date(b.date + "T" + a.time).getTime())
+    .slice(0, 3);
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={["#0D9488", "#134E4A"]} style={styles.header}>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>My Doctor</Text>
+          </View>
+        </LinearGradient>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0D9488" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#4CAF50", "#2E7D32"]} style={styles.header}>
+      <LinearGradient colors={["#0D9488", "#134E4A"]} style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>My Doctor</Text>
           <TouchableOpacity
@@ -260,9 +334,7 @@ function MyDoctorScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Search/Add Doctor Section */}
         <View style={styles.searchCard}>
@@ -289,10 +361,34 @@ function MyDoctorScreen() {
               )}
             </TouchableOpacity>
           </View>
-          <Text style={styles.searchHint}>
-            Search by email to connect with your doctor
-          </Text>
+          <Text style={styles.searchHint}>Search by email to connect with your doctor</Text>
         </View>
+
+        {/* Upcoming Appointments */}
+        {upcomingAppointments.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
+            {upcomingAppointments.map((appt) => (
+              <View key={appt.id} style={styles.appointmentCard}>
+                <View style={styles.appointmentIcon}>
+                  <Ionicons name="calendar" size={24} color="#0D9488" />
+                </View>
+                <View style={styles.appointmentInfo}>
+                  <Text style={styles.appointmentDoctor}>Dr. {appt.doctorName}</Text>
+                  <Text style={styles.appointmentDate}>
+                    {appt.date} at {appt.time}
+                  </Text>
+                  <Text style={styles.appointmentReason}>{appt.reason}</Text>
+                  <View style={[styles.statusPill, { backgroundColor: appt.status === "confirmed" ? "#D1FAE5" : "#FEF3C7" }]}>
+                    <Text style={[styles.statusPillText, { color: appt.status === "confirmed" ? "#059669" : "#D97706" }]}>
+                      {appt.status === "pending" ? "⏳ Pending" : "✓ Confirmed"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Pending Connections */}
         {pendingConnections.length > 0 && (
@@ -301,7 +397,7 @@ function MyDoctorScreen() {
             {pendingConnections.map((connection) => (
               <View key={connection.id} style={styles.doctorCard}>
                 <View style={styles.doctorIcon}>
-                  <Ionicons name="medical" size={30} color="#4CAF50" />
+                  <Ionicons name="medical" size={30} color="#0D9488" />
                 </View>
                 <View style={styles.doctorInfo}>
                   <Text style={styles.doctorName}>
@@ -322,23 +418,19 @@ function MyDoctorScreen() {
           <Text style={styles.sectionTitle}>My Doctors</Text>
           {acceptedConnections.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={64} color="#ccc" />
+              <Ionicons name="people-outline" size={64} color="#CBD5E1" />
               <Text style={styles.emptyText}>No doctors connected yet</Text>
-              <Text style={styles.emptySubtext}>
-                Add a doctor above to get started
-              </Text>
+              <Text style={styles.emptySubtext}>Add a doctor above to get started</Text>
             </View>
           ) : (
             acceptedConnections.map((connection) => (
               <TouchableOpacity
                 key={connection.id}
                 style={styles.doctorCard}
-                onPress={() => {
-                  // TODO: Navigate to doctor details
-                }}
+                onPress={() => router.push(`/doctor/${connection.doctorId}`)}
               >
                 <View style={styles.doctorIcon}>
-                  <Ionicons name="medical" size={30} color="#4CAF50" />
+                  <Ionicons name="medical" size={30} color="#0D9488" />
                 </View>
                 <View style={styles.doctorInfo}>
                   <Text style={styles.doctorName}>
@@ -352,22 +444,82 @@ function MyDoctorScreen() {
                       {connection.doctorProfile.doctorProfile.clinicName}
                     </Text>
                   )}
-                  <Text style={styles.doctorEmail}>
-                    {connection.doctorProfile?.email}
-                  </Text>
+                  <Text style={styles.doctorEmail}>{connection.doctorProfile?.email}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={24} color="#666" />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.bookButton}
+                  onPress={() => openAppointmentModal(connection)}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="white" />
+                </TouchableOpacity>
+              </View>
             ))
           )}
         </View>
       </ScrollView>
+
+      {/* Appointment Booking Modal */}
+      {showAppointmentModal && selectedDoctor && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Book Appointment</Text>
+              <TouchableOpacity onPress={() => setShowAppointmentModal(false)}>
+                <Ionicons name="close" size={28} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalDoctorName}>
+              With Dr. {selectedDoctor.doctorProfile?.name || "Doctor"}
+            </Text>
+
+            <Text style={styles.inputLabel}>Date (YYYY-MM-DD) *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="2026-05-20"
+              value={appointmentDate}
+              onChangeText={setAppointmentDate}
+            />
+
+            <Text style={styles.inputLabel}>Time (HH:MM) *</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="10:00"
+              value={appointmentTime}
+              onChangeText={setAppointmentTime}
+            />
+
+            <Text style={styles.inputLabel}>Reason</Text>
+            <TextInput
+              style={[styles.modalInput, { height: 80, textAlignVertical: "top" }]}
+              placeholder="e.g., Follow-up, General checkup"
+              value={appointmentReason}
+              onChangeText={setAppointmentReason}
+              multiline
+            />
+
+            <TouchableOpacity
+              style={[styles.modalBookButton, isBooking && styles.modalBookButtonDisabled]}
+              onPress={handleBookAppointment}
+              disabled={isBooking}
+            >
+              {isBooking ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.modalBookButtonText}>Request Appointment</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
 
 // Prescriptions Screen for Doctors
 function PrescriptionsListScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
   const { user, userRole } = useAuth();
   const [prescriptions, setPrescriptions] = useState<SharedPrescription[]>([]);
@@ -555,6 +707,8 @@ function PrescriptionsListScreen() {
 
 // Main component that shows different screens based on role
 export default function PrescriptionsScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const { userRole, isLoading: authLoading } = useAuth();
 
   // Show loading while role is being determined
@@ -581,10 +735,10 @@ export default function PrescriptionsScreen() {
   return <PrescriptionsListScreen />;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
   },
   header: {
     paddingTop: 50,
@@ -652,7 +806,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   searchCard: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 15,
     padding: 20,
     marginBottom: 20,
@@ -665,7 +819,7 @@ const styles = StyleSheet.create({
   searchTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 15,
   },
   searchContainer: {
@@ -675,12 +829,12 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: theme.colors.border,
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: theme.colors.surface,
   },
   searchButton: {
     backgroundColor: "#4CAF50",
@@ -694,7 +848,7 @@ const styles = StyleSheet.create({
   },
   searchHint: {
     fontSize: 12,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 10,
   },
   section: {
@@ -703,11 +857,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 15,
   },
   doctorCard: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 15,
     padding: 15,
     flexDirection: "row",
@@ -734,12 +888,12 @@ const styles = StyleSheet.create({
   doctorName: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   doctorSpecialty: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   doctorClinic: {
@@ -766,17 +920,28 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: "#999",
+    color: theme.colors.textTertiary,
     marginTop: 8,
     textAlign: "center",
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    marginTop: 16,
+  },
   prescriptionCard: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 15,
     padding: 20,
     marginBottom: 15,
@@ -799,12 +964,12 @@ const styles = StyleSheet.create({
   prescriptionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   prescriptionDate: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   prescriptionDoctor: {
     fontSize: 13,
@@ -833,21 +998,158 @@ const styles = StyleSheet.create({
   },
   medicationItem: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginLeft: 8,
     marginBottom: 2,
   },
   moreMedications: {
     fontSize: 12,
-    color: "#999",
+    color: theme.colors.textTertiary,
     fontStyle: "italic",
     marginLeft: 8,
     marginTop: 4,
   },
   prescriptionNotes: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 8,
     fontStyle: "italic",
+  },
+  // Appointment styles
+  appointmentCard: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  appointmentIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#F0FDFA",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  appointmentInfo: {
+    flex: 1,
+  },
+  appointmentDoctor: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 2,
+  },
+  appointmentDate: {
+    fontSize: 13,
+    color: "#64748B",
+    marginBottom: 2,
+  },
+  appointmentReason: {
+    fontSize: 12,
+    color: "#94A3B8",
+    marginBottom: 6,
+  },
+  statusPill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  bookButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#0D9488",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#0D9488",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  // Modal styles
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 24,
+    padding: 24,
+    width: "100%",
+    maxWidth: 400,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  modalDoctorName: {
+    fontSize: 14,
+    color: "#64748B",
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#334155",
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#F8FAFC",
+  },
+  modalBookButton: {
+    backgroundColor: "#0D9488",
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 24,
+    shadowColor: "#0D9488",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalBookButtonDisabled: {
+    opacity: 0.6,
+  },
+  modalBookButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

@@ -21,10 +21,13 @@ import {
   PrescriptionMedication,
   getConnectedDoctors,
   getConnectedPatients,
+  ConnectedUserProfile,
 } from "../../../utils/prescriptionManager";
-import { UserProfile } from "../../../utils/userManagement";
+import { useTheme } from "../../../contexts/ThemeContext";
 
 export default function CreatePrescriptionScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
   const { user, userProfile, userRole, refreshUser } = useAuth();
 
@@ -43,8 +46,8 @@ export default function CreatePrescriptionScreen() {
   const [medInstructions, setMedInstructions] = useState("");
 
   // Patient selection (for doctors)
-  const [connectedUsers, setConnectedUsers] = useState<UserProfile[]>([]);
-  const [selectedPatient, setSelectedPatient] = useState<UserProfile | null>(null);
+  const [connectedUsers, setConnectedUsers] = useState<ConnectedUserProfile[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<ConnectedUserProfile | null>(null);
 
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -152,7 +155,7 @@ export default function CreatePrescriptionScreen() {
 
       if (userRole === "doctor") {
         if (!selectedPatient) return;
-        patientId = selectedPatient.email || ""; // In real app, use UID
+        patientId = selectedPatient.id; // Use actual UID
         patientName = selectedPatient.name;
         doctorId = user.uid;
         sharedWith.push(patientId); // Share with patient
@@ -160,7 +163,12 @@ export default function CreatePrescriptionScreen() {
         patientId = user.uid;
         patientName = userProfile.name;
         // Share with all connected doctors
-        sharedWith.push(...connectedUsers.map((d) => d.email || ""));
+        sharedWith.push(...connectedUsers.map((d) => d.id));
+      }
+
+      if (!userRole) {
+        Alert.alert("Error", "User role not loaded. Please try again.");
+        return;
       }
 
       const prescriptionData = {
@@ -237,17 +245,17 @@ export default function CreatePrescriptionScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {connectedUsers.map((patient) => (
                     <TouchableOpacity
-                      key={patient.email}
+                      key={patient.id}
                       style={[
                         styles.patientChip,
-                        selectedPatient?.email === patient.email && styles.patientChipActive,
+                        selectedPatient?.id === patient.id && styles.patientChipActive,
                       ]}
                       onPress={() => setSelectedPatient(patient)}
                     >
                       <Text
                         style={[
                           styles.patientChipText,
-                          selectedPatient?.email === patient.email &&
+                          selectedPatient?.id === patient.id &&
                             styles.patientChipTextActive,
                         ]}
                       >
@@ -424,21 +432,21 @@ export default function CreatePrescriptionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   header: {
     paddingTop: 50,
@@ -479,23 +487,23 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 12,
   },
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#555",
+    color: theme.colors.textSecondary,
     marginBottom: 8,
     marginTop: 12,
   },
   input: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 12,
     padding: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: theme.colors.border,
     marginBottom: 12,
   },
   textArea: {
@@ -513,10 +521,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     marginRight: 12,
     borderWidth: 2,
-    borderColor: "#ddd",
+    borderColor: theme.colors.border,
   },
   patientChipActive: {
     backgroundColor: "#7C4DFF",
@@ -525,25 +533,25 @@ const styles = StyleSheet.create({
   patientChipText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   patientChipTextActive: {
     color: "white",
   },
   emptyText: {
     fontSize: 14,
-    color: "#999",
+    color: theme.colors.textTertiary,
     fontStyle: "italic",
   },
   medicationCard: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 12,
     padding: 15,
     marginBottom: 12,
     flexDirection: "row",
     alignItems: "flex-start",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
   },
   medicationInfo: {
     flex: 1,
@@ -551,29 +559,29 @@ const styles = StyleSheet.create({
   medicationName: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 6,
   },
   medicationDetail: {
     fontSize: 13,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 3,
   },
   removeButton: {
     padding: 8,
   },
   addMedForm: {
-    backgroundColor: "#f9f9f9",
+    backgroundColor: theme.colors.surface,
     borderRadius: 12,
     padding: 16,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
   },
   addMedTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#555",
+    color: theme.colors.textSecondary,
     marginBottom: 12,
   },
   addMedButton: {
@@ -582,7 +590,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 12,
     borderRadius: 8,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderWidth: 2,
     borderColor: "#7C4DFF",
     borderStyle: "dashed",

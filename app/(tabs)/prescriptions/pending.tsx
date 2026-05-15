@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../../contexts/AuthContext";
+import { useTheme } from "../../../contexts/ThemeContext";
 import {
   getPendingPrescriptions,
   approvePrescription,
@@ -23,6 +24,8 @@ import {
 } from "../../../utils/prescriptionManager";
 
 export default function PendingPrescriptionsScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
   const { user } = useAuth();
   const [prescriptions, setPrescriptions] = useState<SharedPrescription[]>([]);
@@ -320,10 +323,10 @@ export default function PendingPrescriptionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
   },
   header: {
     paddingTop: 50,
@@ -359,17 +362,17 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginTop: 16,
   },
   emptyText: {
     fontSize: 16,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 8,
     textAlign: "center",
   },
@@ -380,7 +383,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   prescriptionCard: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -412,12 +415,12 @@ const styles = StyleSheet.create({
   },
   date: {
     fontSize: 12,
-    color: "#999",
+    color: theme.colors.textTertiary,
   },
   title: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 8,
   },
   doctorInfo: {
@@ -435,17 +438,17 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: theme.colors.border,
   },
   sectionLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#555",
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   sectionContent: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     lineHeight: 20,
   },
   medicationItem: {
@@ -455,12 +458,12 @@ const styles = StyleSheet.create({
   medicationName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 2,
   },
   medicationDetail: {
     fontSize: 12,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginLeft: 8,
   },
   actionButtons: {
@@ -508,7 +511,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 24,
     width: "100%",
@@ -517,17 +520,17 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 12,
   },
   modalMessage: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 16,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
@@ -546,7 +549,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
   },
   confirmButton: {
     backgroundColor: "#f44336",

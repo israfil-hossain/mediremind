@@ -23,6 +23,7 @@ import {
   scheduleRefillReminder,
 } from "../../utils/notifications";
 import { canAddMedication, canUseRefillAlerts, getMedicationLimit } from "../../utils/subscription";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -63,6 +64,8 @@ const DURATIONS = [
 ];
 
 export default function AddMedicationScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
   const [form, setForm] = useState({
     name: "",
@@ -708,10 +711,10 @@ export default function AddMedicationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.colors.background,
   },
   headerGradient: {
     position: "absolute",
@@ -735,7 +738,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -780,13 +783,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: theme.colors.text,
     marginBottom: 15,
     marginTop: 10,
   },
   mainInput: {
     fontSize: 20,
-    color: "#333",
+    color: theme.colors.text,
     padding: 15,
   },
   optionsGrid: {
@@ -796,13 +799,13 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     width: (width - 60) / 2,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 15,
     margin: 5,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -817,7 +820,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
@@ -828,7 +831,7 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     textAlign: "center",
   },
   selectedOptionLabel: {
@@ -844,11 +847,11 @@ const styles = StyleSheet.create({
     color: "white",
   },
   inputContainer: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -858,12 +861,12 @@ const styles = StyleSheet.create({
   dateButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 15,
     marginTop: 15,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -874,7 +877,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
@@ -882,14 +885,14 @@ const styles = StyleSheet.create({
   dateButtonText: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
+    color: theme.colors.text,
   },
   card: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -911,7 +914,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 15,
@@ -919,11 +922,11 @@ const styles = StyleSheet.create({
   switchLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
   },
   switchSubLabel: {
     fontSize: 13,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginTop: 4,
   },
   inputRow: {
@@ -937,13 +940,13 @@ const styles = StyleSheet.create({
   input: {
     padding: 15,
     fontSize: 16,
-    color: "#333",
+    color: theme.colors.text,
   },
   textAreaContainer: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -954,13 +957,13 @@ const styles = StyleSheet.create({
     height: 100,
     padding: 15,
     fontSize: 16,
-    color: "#333",
+    color: theme.colors.text,
   },
   footer: {
     padding: 20,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+    borderTopColor: theme.colors.border,
   },
   saveButton: {
     borderRadius: 16,
@@ -981,13 +984,13 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
   },
   cancelButtonText: {
-    color: "#666",
+    color: theme.colors.textSecondary,
     fontSize: 16,
     fontWeight: "600",
   },
@@ -1012,18 +1015,18 @@ const styles = StyleSheet.create({
   timesTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 10,
   },
   timeButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 15,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1034,7 +1037,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.colors.background,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
@@ -1042,14 +1045,14 @@ const styles = StyleSheet.create({
   timeButtonText: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
+    color: theme.colors.text,
   },
   adContainer: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.colors.background,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+    borderTopColor: theme.colors.border,
   },
 });

@@ -70,45 +70,115 @@ export async function createPrescription(
   prescription: Omit<SharedPrescription, "id" | "createdAt" | "updatedAt" | "status">
 ): Promise<string> {
   try {
-    await initializeFirebase();
-    const firestore = getFirestore();
+    const status = prescription.createdByRole === "doctor" ? "pending" : "approved";
+    const projectId = ENV.FIREBASE_PROJECT_ID;
+    if (!projectId) throw new Error("Firebase project ID not configured");
 
-    if (!firestore) {
-      throw new Error("Firestore not available. Please check your connection.");
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error("Not authenticated");
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions`;
+
+    // Build Firestore document fields
+    const fields: any = {
+      createdBy: { stringValue: prescription.createdBy },
+      createdByRole: { stringValue: prescription.createdByRole },
+      patientId: { stringValue: prescription.patientId },
+      title: { stringValue: prescription.title },
+      status: { stringValue: status },
+      sharedWith: { arrayValue: { values: prescription.sharedWith.map((s) => ({ stringValue: s })) } },
+      createdAt: { timestampValue: new Date().toISOString() },
+      updatedAt: { timestampValue: new Date().toISOString() },
+    };
+
+    if (prescription.doctorId) fields.doctorId = { stringValue: prescription.doctorId };
+    if (prescription.diagnosis) fields.diagnosis = { stringValue: prescription.diagnosis };
+    if (prescription.notes) fields.notes = { stringValue: prescription.notes };
+    if (prescription.instructions) fields.instructions = { stringValue: prescription.instructions };
+    if (prescription.patientName) fields.patientName = { stringValue: prescription.patientName };
+    if (prescription.patientAge) fields.patientAge = { stringValue: prescription.patientAge };
+    if (prescription.patientGender) fields.patientGender = { stringValue: prescription.patientGender };
+    if (prescription.patientPhone) fields.patientPhone = { stringValue: prescription.patientPhone };
+    if (prescription.doctorName) fields.doctorName = { stringValue: prescription.doctorName };
+    if (prescription.doctorSpecialty) fields.doctorSpecialty = { stringValue: prescription.doctorSpecialty };
+    if (prescription.doctorPhone) fields.doctorPhone = { stringValue: prescription.doctorPhone };
+    if (prescription.doctorLicense) fields.doctorLicense = { stringValue: prescription.doctorLicense };
+    if (prescription.clinicName) fields.clinicName = { stringValue: prescription.clinicName };
+
+    // Medications array
+    if (prescription.medications?.length > 0) {
+      fields.medications = {
+        arrayValue: {
+          values: prescription.medications.map((med) => ({
+            mapValue: {
+              fields: {
+                name: { stringValue: med.name },
+                ...(med.dosage && { dosage: { stringValue: med.dosage } }),
+                ...(med.frequency && { frequency: { stringValue: med.frequency } }),
+                ...(med.duration && { duration: { stringValue: med.duration } }),
+                ...(med.instructions && { instructions: { stringValue: med.instructions } }),
+              },
+            },
+          })),
+        },
+      };
     }
 
-    // Set status based on who created it
-    // Doctor-created prescriptions need patient approval
-    // Patient-created prescriptions are automatically approved
-    const status = prescription.createdByRole === "doctor" ? "pending" : "approved";
-
-    const docRef = await firestore().collection("prescriptions").add({
-      ...prescription,
-      status,
-      createdAt: firestore.FieldValue.serverTimestamp(),
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ fields }),
     });
 
-    // Send notification to shared users
-    for (const userId of prescription.sharedWith) {
-      await firestore().collection("notifications").add({
-        userId,
-        type: prescription.createdByRole === "doctor" ? "prescription_pending_approval" : "prescription_shared",
-        title: prescription.createdByRole === "doctor" ? "New Prescription Pending Approval" : "New Prescription Shared",
-        message:
-          prescription.createdByRole === "doctor"
-            ? `Dr. ${prescription.doctorName || "Your doctor"} sent you a prescription. Please review and approve.`
-            : `${prescription.patientName} shared a prescription with you`,
-        data: {
-          prescriptionId: docRef.id,
-          fromUserId: prescription.createdBy,
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Error creating prescription:", response.status, errorText);
+      throw new Error("Failed to create prescription");
+    }
+
+    const result = await response.json();
+    const prescriptionId = result.name.split("/").pop();
+
+    // Send notification to patient
+    const notificationUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/notifications`;
+    const notifyUserId = prescription.createdByRole === "doctor" ? prescription.patientId : prescription.doctorId;
+    if (notifyUserId) {
+      await fetch(notificationUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
         },
-        read: false,
-        createdAt: firestore.FieldValue.serverTimestamp(),
+        body: JSON.stringify({
+          fields: {
+            userId: { stringValue: notifyUserId },
+            type: { stringValue: prescription.createdByRole === "doctor" ? "prescription_pending_approval" : "prescription_shared" },
+            title: { stringValue: prescription.createdByRole === "doctor" ? "New Prescription Pending Approval" : "New Prescription Shared" },
+            message: {
+              stringValue:
+                prescription.createdByRole === "doctor"
+                  ? `Dr. ${prescription.doctorName || "Your doctor"} sent you a prescription. Please review and approve.`
+                  : `${prescription.patientName} shared a prescription with you`,
+            },
+            data: {
+              mapValue: {
+                fields: {
+                  prescriptionId: { stringValue: prescriptionId },
+                  fromUserId: { stringValue: prescription.createdBy },
+                },
+              },
+            },
+            read: { booleanValue: false },
+            createdAt: { timestampValue: new Date().toISOString() },
+          },
+        }),
       });
     }
 
-    return docRef.id;
+    return prescriptionId;
   } catch (error) {
     console.error("Error creating prescription:", error);
     throw new Error("Failed to create prescription");
@@ -401,73 +471,67 @@ export async function rejectPrescription(
 
 /**
  * Create medications from an approved prescription
+ * Maps to the Medication interface and schedules reminders
  */
 async function createMedicationsFromPrescription(
   prescription: SharedPrescription
 ): Promise<void> {
   try {
-    // Import storage functions dynamically to avoid circular dependencies
     const { addMedication } = await import("./storage");
+    const { updateMedicationReminders } = await import("./notifications");
 
-    // Create a medication for each medication in the prescription
-    for (const med of prescription.medications) {
-      // Parse frequency to determine times per day
+    const colors = ["#EF4444", "#F97316", "#EAB308", "#22C55E", "#06B6D4", "#3B82F6", "#8B5CF6", "#EC4899"];
+
+    for (let i = 0; i < prescription.medications.length; i++) {
+      const med = prescription.medications[i];
+
+      // Parse frequency to determine reminder times
       const frequency = med.frequency?.toLowerCase() || "";
-      let timesPerDay = 1;
-      let reminderTimes: string[] = ["09:00"];
+      let times: string[] = ["09:00"];
 
       if (frequency.includes("3") || frequency.includes("thrice") || frequency.includes("ter")) {
-        timesPerDay = 3;
-        reminderTimes = ["08:00", "13:00", "20:00"];
+        times = ["08:00", "14:00", "20:00"];
       } else if (frequency.includes("2") || frequency.includes("twice") || frequency.includes("bid")) {
-        timesPerDay = 2;
-        reminderTimes = ["09:00", "21:00"];
+        times = ["09:00", "21:00"];
       } else if (frequency.includes("4") || frequency.includes("qid")) {
-        timesPerDay = 4;
-        reminderTimes = ["08:00", "13:00", "18:00", "22:00"];
-      } else if (frequency.includes("1") || frequency.includes("once") || frequency.includes("daily")) {
-        timesPerDay = 1;
-        reminderTimes = ["09:00"];
+        times = ["08:00", "12:00", "16:00", "20:00"];
+      } else if (frequency.includes("morning") || frequency.includes("am")) {
+        times = ["08:00"];
+      } else if (frequency.includes("night") || frequency.includes("bedtime") || frequency.includes("pm")) {
+        times = ["21:00"];
+      } else {
+        times = ["09:00"];
       }
 
-      // Parse duration to calculate stock and end date
-      const duration = med.duration?.toLowerCase() || "";
-      let daysSupply = 7; // Default to 7 days
+      // Parse duration
+      const durationStr = med.duration || "7 days";
+      const durationMatch = durationStr.match(/(\d+)/);
+      const daysSupply = durationMatch ? parseInt(durationMatch[1]) : 7;
 
-      if (duration.includes("7") || duration.includes("week")) {
-        daysSupply = 7;
-      } else if (duration.includes("14") || duration.includes("2 week")) {
-        daysSupply = 14;
-      } else if (duration.includes("30") || duration.includes("month")) {
-        daysSupply = 30;
-      } else if (duration.includes("7") || duration.includes("week")) {
-        daysSupply = 7;
-      }
+      // Calculate total supply
+      const totalSupply = times.length * daysSupply;
+      const refillAt = Math.max(3, Math.floor(totalSupply * 0.2));
 
-      // Calculate end date
-      const startDate = new Date();
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + daysSupply);
-
-      // Calculate total stock needed
-      const totalStock = timesPerDay * daysSupply;
-
-      await addMedication({
+      const medication = {
+        id: Math.random().toString(36).slice(2, 11),
         name: med.name,
         dosage: med.dosage || "As prescribed",
-        frequency: med.frequency || "Once daily",
-        timesPerDay,
-        reminderTimes,
-        startDate: startDate.toISOString().split("T")[0],
-        endDate: endDate.toISOString().split("T")[0],
-        stock: totalStock,
-        instructions: med.instructions || prescription.instructions || "",
-        notes: `From prescription: ${prescription.title}`,
-        prescriptionRef: prescription.id,
-      });
+        times,
+        startDate: new Date().toISOString().split("T")[0],
+        duration: durationStr,
+        color: colors[i % colors.length],
+        reminderEnabled: true,
+        currentSupply: totalSupply,
+        totalSupply,
+        refillAt,
+        refillReminder: true,
+      };
+
+      await addMedication(medication);
+      await updateMedicationReminders(medication);
     }
 
-    console.log(`✓ Created ${prescription.medications.length} medications from prescription`);
+    console.log(`✓ Created ${prescription.medications.length} medications with reminders from prescription`);
   } catch (error) {
     console.error("Error creating medications from prescription:", error);
     throw new Error("Failed to create medications from prescription");
@@ -593,40 +657,27 @@ export function formatPrescriptionForWhatsApp(
 }
 
 /**
- * Get connected doctors for a patient
+ * Get connected doctors for a patient (uses REST API for Expo Go compatibility)
  */
+export type ConnectedUserProfile = UserProfile & { id: string };
+
 export async function getConnectedDoctors(
   patientId: string
-): Promise<UserProfile[]> {
+): Promise<ConnectedUserProfile[]> {
   try {
-    await initializeFirebase();
-    const firestore = getFirestore();
+    const { getPatientConnections } = await import("./connections");
+    const connections = await getPatientConnections(patientId);
 
-    if (!firestore) {
-      console.log("Firestore not available, returning empty doctors list");
-      return [];
-    }
-
-    const snapshot = await firestore()
-      .collection("connections")
-      .where("patientId", "==", patientId)
-      .where("status", "==", "accepted")
-      .get();
-
-    const doctors: UserProfile[] = [];
-
-    for (const doc of snapshot.docs) {
-      const connection = doc.data();
-      const doctorDoc = await firestore()
-        .collection("users")
-        .doc(connection.doctorId)
-        .get();
-
-      if (doctorDoc.exists) {
-        doctors.push(doctorDoc.data() as UserProfile);
+    const doctors: ConnectedUserProfile[] = [];
+    for (const conn of connections) {
+      if (conn.status === "accepted" && conn.doctorId) {
+        const { getUserProfile } = await import("./userManagement");
+        const profile = await getUserProfile(conn.doctorId);
+        if (profile) {
+          doctors.push({ ...profile, id: conn.doctorId });
+        }
       }
     }
-
     return doctors;
   } catch (error) {
     console.error("Error getting connected doctors:", error);
@@ -635,40 +686,25 @@ export async function getConnectedDoctors(
 }
 
 /**
- * Get connected patients for a doctor
+ * Get connected patients for a doctor (uses REST API for Expo Go compatibility)
  */
 export async function getConnectedPatients(
   doctorId: string
-): Promise<UserProfile[]> {
+): Promise<ConnectedUserProfile[]> {
   try {
-    await initializeFirebase();
-    const firestore = getFirestore();
+    const { getDoctorConnections } = await import("./connections");
+    const connections = await getDoctorConnections(doctorId);
 
-    if (!firestore) {
-      console.log("Firestore not available, returning empty patients list");
-      return [];
-    }
-
-    const snapshot = await firestore()
-      .collection("connections")
-      .where("doctorId", "==", doctorId)
-      .where("status", "==", "accepted")
-      .get();
-
-    const patients: UserProfile[] = [];
-
-    for (const doc of snapshot.docs) {
-      const connection = doc.data();
-      const patientDoc = await firestore()
-        .collection("users")
-        .doc(connection.patientId)
-        .get();
-
-      if (patientDoc.exists) {
-        patients.push(patientDoc.data() as UserProfile);
+    const patients: ConnectedUserProfile[] = [];
+    for (const conn of connections) {
+      if (conn.status === "accepted" && conn.patientId) {
+        const { getUserProfile } = await import("./userManagement");
+        const profile = await getUserProfile(conn.patientId);
+        if (profile) {
+          patients.push({ ...profile, id: conn.patientId });
+        }
       }
     }
-
     return patients;
   } catch (error) {
     console.error("Error getting connected patients:", error);

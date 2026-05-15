@@ -26,7 +26,7 @@ function RootLayoutContent() {
             }}
           />
           <Stack.Screen
-            name="auth"
+            name="auth/index"
             options={{
               headerShown: false,
             }}
@@ -35,6 +35,7 @@ function RootLayoutContent() {
             name="(tabs)"
             options={{
               headerShown: false,
+              animation: "fade",
             }}
           />
           <Stack.Screen
@@ -46,7 +47,7 @@ function RootLayoutContent() {
             }}
           />
           <Stack.Screen
-            name="refills/index"
+            name="refills"
             options={{
               headerShown: false,
               headerBackTitle: "",
@@ -62,7 +63,7 @@ function RootLayoutContent() {
             }}
           />
           <Stack.Screen
-            name="settings/index"
+            name="settings"
             options={{
               headerShown: false,
               headerBackTitle: "",

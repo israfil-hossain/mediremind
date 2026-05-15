@@ -1,14 +1,15 @@
 import { initPaymentSheet, presentPaymentSheet } from "@stripe/stripe-react-native";
 import { ENV } from "../config/env";
 import { setSubscription, Subscription } from "./subscription";
+import { getCurrentUser, getIdToken } from "./firebase";
 
 // Firebase callable function helper
 async function callFunction(name: string, data: Record<string, any> = {}) {
-  const auth = require("@react-native-firebase/auth").default;
-  const user = auth().currentUser;
+  const user = await getCurrentUser();
   if (!user) throw new Error("Not authenticated");
 
-  const token = await user.getIdToken();
+  const token = await getIdToken();
+  if (!token) throw new Error("No authentication token available");
   const projectId = ENV.FIREBASE_PROJECT_ID;
   const url = `https://us-central1-${projectId}.cloudfunctions.net/${name}`;
 

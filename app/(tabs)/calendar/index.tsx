@@ -18,10 +18,13 @@ import {
   DoseHistory,
 } from "../../../utils/storage";
 import { useFocusEffect } from "@react-navigation/native";
+import { useTheme } from "../../../contexts/ThemeContext";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function CalendarScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -57,8 +60,8 @@ export default function CalendarScreen() {
   const { days, firstDay } = getDaysInMonth(selectedDate);
 
   const renderCalendar = () => {
-    const calendar: JSX.Element[] = [];
-    let week: JSX.Element[] = [];
+    const calendar: React.ReactNode[] = [];
+    let week: React.ReactNode[] = [];
 
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
@@ -240,10 +243,10 @@ export default function CalendarScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.colors.background,
   },
   headerGradient: {
     position: "absolute",
@@ -267,7 +270,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -283,7 +286,7 @@ const styles = StyleSheet.create({
     marginLeft: 15,
   },
   calendarContainer: {
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     margin: 20,
     padding: 15,
@@ -302,7 +305,7 @@ const styles = StyleSheet.create({
   monthText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
   },
   weekdayHeader: {
     flexDirection: "row",
@@ -311,7 +314,7 @@ const styles = StyleSheet.create({
   weekdayText: {
     flex: 1,
     textAlign: "center",
-    color: "#666",
+    color: theme.colors.textSecondary,
     fontWeight: "500",
   },
   calendarWeek: {
@@ -327,7 +330,7 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 16,
-    color: "#333",
+    color: theme.colors.text,
   },
   today: {
     backgroundColor: "#1a8e2d15",
@@ -349,7 +352,7 @@ const styles = StyleSheet.create({
   },
   scheduleContainer: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
@@ -362,18 +365,18 @@ const styles = StyleSheet.create({
   scheduleTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 15,
   },
   medicationCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 15,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -392,17 +395,17 @@ const styles = StyleSheet.create({
   medicationName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   medicationDosage: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   medicationTime: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   takeDoseButton: {
     paddingVertical: 8,

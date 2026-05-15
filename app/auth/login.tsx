@@ -25,8 +25,201 @@ import {
   configureGoogleSignIn,
 } from "../../utils/firebase";
 import { getUserProfile } from "../../utils/userManagement";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const { width } = Dimensions.get("window");
+
+function createLoginStyles(theme: any) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+    },
+    content: {
+      flex: 1,
+      padding: 20,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    backButton: {
+      position: "absolute",
+      top: 50,
+      left: 20,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    iconContainer: {
+      width: 120,
+      height: 120,
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      borderRadius: 60,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    title: {
+      fontSize: 36,
+      fontWeight: "bold",
+      color: "white",
+      marginBottom: 10,
+      textShadowColor: "rgba(0, 0, 0, 0.2)",
+      textShadowOffset: { width: 1, height: 1 },
+      textShadowRadius: 3,
+    },
+    subtitle: {
+      fontSize: 18,
+      color: "rgba(255, 255, 255, 0.9)",
+      marginBottom: 40,
+      textAlign: "center",
+    },
+    card: {
+      backgroundColor: theme.colors.card,
+      borderRadius: 20,
+      padding: 30,
+      width: width - 40,
+      alignItems: "center",
+      shadowColor: "#000",
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      elevation: 5,
+    },
+    welcomeText: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: theme.colors.text,
+      marginBottom: 10,
+    },
+    instructionText: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      textAlign: "center",
+      marginBottom: 30,
+      lineHeight: 24,
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      width: "100%",
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 12,
+      marginBottom: 15,
+      paddingHorizontal: 15,
+      backgroundColor: theme.colors.surface,
+    },
+    inputIcon: {
+      marginRight: 10,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: 15,
+      fontSize: 16,
+      color: theme.colors.text,
+    },
+    button: {
+      backgroundColor: "#4CAF50",
+      paddingVertical: 15,
+      paddingHorizontal: 30,
+      borderRadius: 12,
+      width: "100%",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 10,
+    },
+    buttonDisabled: {
+      opacity: 0.7,
+    },
+    buttonIcon: {
+      marginRight: 10,
+    },
+    buttonText: {
+      color: "white",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    forgotPasswordButton: {
+      marginTop: 10,
+      paddingVertical: 5,
+      alignSelf: "flex-end",
+    },
+    forgotPasswordText: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+    },
+    divider: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginVertical: 20,
+      width: "100%",
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: theme.colors.border,
+    },
+    dividerText: {
+      marginHorizontal: 10,
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+    },
+    googleButton: {
+      backgroundColor: theme.colors.card,
+      paddingVertical: 15,
+      paddingHorizontal: 30,
+      borderRadius: 12,
+      width: "100%",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    googleButtonText: {
+      color: theme.colors.text,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    switchButton: {
+      marginTop: 20,
+      paddingVertical: 10,
+    },
+    switchText: {
+      color: "#4CAF50",
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    errorContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 15,
+      padding: 10,
+      backgroundColor: theme.mode === "dark" ? "rgba(244, 67, 54, 0.1)" : "#ffebee",
+      borderRadius: 8,
+      width: "100%",
+    },
+    errorText: {
+      color: "#f44336",
+      marginLeft: 8,
+      fontSize: 14,
+      flex: 1,
+    },
+    loadingText: {
+      color: "white",
+      fontSize: 16,
+      marginTop: 16,
+    },
+  });
+}
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -34,6 +227,8 @@ export default function LoginScreen() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const { theme } = useTheme();
+  const styles = createLoginStyles(theme);
 
   // Form fields
   const [email, setEmail] = useState("");
@@ -134,7 +329,7 @@ export default function LoginScreen() {
 
       Alert.alert(
         "Email Sent",
-        `Password reset instructions have been sent to ${email}`,
+        `Password reset instructions have been sent to ${email}.\n\nPlease check your spam folder if you don't receive it within a few minutes.`,
         [
           {
             text: "OK",
@@ -146,9 +341,10 @@ export default function LoginScreen() {
         ]
       );
     } catch (err: any) {
-      const errorMessage =
-        err.message || "Failed to send password reset email";
+      console.error("Forgot password error:", err.message);
+      const errorMessage = err.message || "Failed to send password reset email";
       setError(errorMessage);
+      Alert.alert("Error", errorMessage);
     } finally {
       setIsAuthenticating(false);
     }
@@ -180,6 +376,8 @@ export default function LoginScreen() {
       setIsAuthenticating(false);
     }
   };
+
+  const styles = createStyles(theme);
 
   if (isInitializing) {
     return (
@@ -235,7 +433,7 @@ export default function LoginScreen() {
                 <Ionicons
                   name="mail-outline"
                   size={20}
-                  color="#666"
+                  color={theme.colors.textSecondary}
                   style={styles.inputIcon}
                 />
                 <TextInput
@@ -255,7 +453,7 @@ export default function LoginScreen() {
                   <Ionicons
                     name="lock-closed-outline"
                     size={20}
-                    color="#666"
+                    color={theme.colors.textSecondary}
                     style={styles.inputIcon}
                   />
                   <TextInput
@@ -363,192 +561,3 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  backButton: {
-    position: "absolute",
-    top: 50,
-    left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  iconContainer: {
-    width: 120,
-    height: 120,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 60,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "white",
-    marginBottom: 10,
-    textShadowColor: "rgba(0, 0, 0, 0.2)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: "rgba(255, 255, 255, 0.9)",
-    marginBottom: 40,
-    textAlign: "center",
-  },
-  card: {
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 30,
-    width: width - 40,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  welcomeText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 10,
-  },
-  instructionText: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 30,
-    lineHeight: 24,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
-    marginBottom: 15,
-    paddingHorizontal: 15,
-    backgroundColor: "#f9f9f9",
-  },
-  inputIcon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 15,
-    fontSize: 16,
-    color: "#333",
-  },
-  button: {
-    backgroundColor: "#4CAF50",
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 12,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonIcon: {
-    marginRight: 10,
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  forgotPasswordButton: {
-    marginTop: 10,
-    paddingVertical: 5,
-    alignSelf: "flex-end",
-  },
-  forgotPasswordText: {
-    color: "#666",
-    fontSize: 14,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 20,
-    width: "100%",
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#ddd",
-  },
-  dividerText: {
-    marginHorizontal: 10,
-    color: "#666",
-    fontSize: 14,
-  },
-  googleButton: {
-    backgroundColor: "white",
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 12,
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  googleButtonText: {
-    color: "#333",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  switchButton: {
-    marginTop: 20,
-    paddingVertical: 10,
-  },
-  switchText: {
-    color: "#4CAF50",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  errorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 15,
-    padding: 10,
-    backgroundColor: "#ffebee",
-    borderRadius: 8,
-    width: "100%",
-  },
-  errorText: {
-    color: "#f44336",
-    marginLeft: 8,
-    fontSize: 14,
-    flex: 1,
-  },
-  loadingText: {
-    color: "white",
-    fontSize: 16,
-    marginTop: 16,
-  },
-});

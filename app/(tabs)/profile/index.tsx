@@ -542,8 +542,31 @@ export default function ProfileScreen() {
                   iconColor="#2196F3"
                   title="Restore Purchases"
                   subtitle="Restore previous purchases"
-                  onPress={() => {
-                    Alert.alert("Restore", "Checking for previous purchases...");
+                  onPress={async () => {
+                    Alert.alert(
+                      "Restore Purchases",
+                      "This will check for any existing Stripe subscription linked to your account.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Restore",
+                          onPress: async () => {
+                            try {
+                              const { syncSubscriptionFromServer } = require("../../../utils/stripe");
+                              await syncSubscriptionFromServer();
+                              const sub = await getSubscription();
+                              if (sub.type !== "free") {
+                                Alert.alert("Success", "Your subscription has been restored!");
+                              } else {
+                                Alert.alert("No Subscription", "No previous subscription found for this account.");
+                              }
+                            } catch (e: any) {
+                              Alert.alert("Error", e.message || "Could not restore purchases.");
+                            }
+                          },
+                        },
+                      ]
+                    );
                   }}
                 />
               </View>

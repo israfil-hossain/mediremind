@@ -18,16 +18,278 @@ import {
   signUpWithEmail,
 } from "../../../utils/firebase";
 import { createUserProfile } from "../../../utils/userManagement";
+import {
+  checkPendingInvitations,
+  acceptInvitation,
+} from "../../../utils/connections";
 import { useAuth } from "../../../contexts/AuthContext";
+import { useTheme } from "../../../contexts/ThemeContext";
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const GENDERS = ["Male", "Female", "Other"];
 
+function createPatientStyles(theme: any) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+    },
+    content: {
+      flex: 1,
+      padding: 20,
+      paddingTop: 40,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    iconContainer: {
+      width: 100,
+      height: 100,
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      borderRadius: 50,
+      justifyContent: "center",
+      alignItems: "center",
+      marginBottom: 20,
+      alignSelf: "center",
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "bold",
+      color: "white",
+      marginBottom: 5,
+      textAlign: "center",
+    },
+    subtitle: {
+      fontSize: 16,
+      color: "rgba(255, 255, 255, 0.9)",
+      marginBottom: 30,
+      textAlign: "center",
+    },
+    card: {
+      backgroundColor: theme.colors.card,
+      borderRadius: 20,
+      padding: 25,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      elevation: 5,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: theme.colors.text,
+      marginTop: 15,
+      marginBottom: 10,
+    },
+    sectionDivider: {
+      height: 1,
+      backgroundColor: theme.colors.border,
+      marginBottom: 15,
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 12,
+      marginBottom: 12,
+      paddingHorizontal: 15,
+      backgroundColor: theme.colors.surface,
+      minHeight: 50,
+    },
+    inputIcon: {
+      marginRight: 10,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: theme.colors.text,
+    },
+    pickerLabel: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      flex: 1,
+    },
+    pickerContainer: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginHorizontal: -5,
+      marginBottom: 15,
+    },
+    chip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: theme.colors.surface,
+      margin: 5,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    chipActive: {
+      backgroundColor: "#4CAF50",
+      borderColor: "#4CAF50",
+    },
+    chipText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+      fontWeight: "500",
+    },
+    chipTextActive: {
+      color: "white",
+    },
+    button: {
+      backgroundColor: "#4CAF50",
+      paddingVertical: 15,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 15,
+    },
+    buttonDisabled: {
+      opacity: 0.7,
+    },
+    buttonText: {
+      color: "white",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    errorContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 15,
+      padding: 10,
+      backgroundColor: theme.mode === "dark" ? "rgba(244, 67, 54, 0.1)" : "#ffebee",
+      borderRadius: 8,
+    },
+    errorText: {
+      color: "#f44336",
+      marginLeft: 8,
+      fontSize: 14,
+      flex: 1,
+    },
+    datePickerModal: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 1000,
+    },
+    datePickerContent: {
+      backgroundColor: theme.colors.card,
+      borderRadius: 20,
+      padding: 20,
+      width: "90%",
+      maxWidth: 400,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 8,
+    },
+    datePickerTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: theme.colors.text,
+      marginBottom: 15,
+      textAlign: "center",
+    },
+    datePickerButtons: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 15,
+    },
+    datePickerButton: {
+      paddingHorizontal: 15,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: theme.colors.surface,
+    },
+    datePickerConfirm: {
+      backgroundColor: "#4CAF50",
+    },
+    datePickerButtonText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.colors.textSecondary,
+    },
+    selectedDate: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: "#4CAF50",
+    },
+    calendarGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "center",
+    },
+    calendarDay: {
+      width: 40,
+      height: 40,
+      justifyContent: "center",
+      alignItems: "center",
+      borderRadius: 8,
+      margin: 3,
+      backgroundColor: theme.colors.surface,
+    },
+    calendarDayEmpty: {
+      width: 40,
+      height: 40,
+      margin: 3,
+    },
+    calendarDaySelected: {
+      backgroundColor: "#4CAF50",
+    },
+    calendarDayToday: {
+      borderWidth: 2,
+      borderColor: "#2196F3",
+    },
+    calendarDayText: {
+      fontSize: 14,
+      color: theme.colors.text,
+    },
+    calendarDayTextSelected: {
+      color: "white",
+      fontWeight: "bold",
+    },
+    weekdayRow: {
+      flexDirection: "row",
+      marginBottom: 10,
+    },
+    weekday: {
+      flex: 1,
+      alignItems: "center",
+      paddingVertical: 5,
+    },
+    weekdayText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: theme.colors.textSecondary,
+    },
+  });
+}
+
 export default function PatientSignupScreen() {
   const router = useRouter();
   const { refreshUser } = useAuth();
+  const { theme } = useTheme();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const styles = createPatientStyles(theme);
 
   // Personal Information
   const [name, setName] = useState("");
@@ -153,6 +415,21 @@ export default function PatientSignupScreen() {
         },
       });
 
+      // Check for pending invitations from doctors and auto-connect
+      try {
+        const invitations = await checkPendingInvitations(email);
+        for (const invitation of invitations) {
+          await acceptInvitation(invitation.id, user.uid, email);
+        }
+        if (invitations.length > 0) {
+          console.log(
+            `✓ Auto-connected to ${invitations.length} doctor(s) via invitations`
+          );
+        }
+      } catch (e) {
+        console.warn("Error checking invitations:", e);
+      }
+
       // Refresh auth context to load new user profile
       await refreshUser();
 
@@ -198,7 +475,7 @@ export default function PatientSignupScreen() {
               <View style={styles.sectionDivider} />
 
               <View style={styles.inputContainer}>
-                <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="person-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Full Name *"
@@ -210,7 +487,7 @@ export default function PatientSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="mail-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Email *"
@@ -224,7 +501,7 @@ export default function PatientSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="call-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Phone Number *"
@@ -236,7 +513,7 @@ export default function PatientSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Password *"
@@ -249,7 +526,7 @@ export default function PatientSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Confirm Password *"
@@ -270,7 +547,7 @@ export default function PatientSignupScreen() {
                 onPress={() => setShowDatePicker(true)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="calendar-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="calendar-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <Text style={styles.input}>
                   {dateOfBirth || "Select Date of Birth *"}
                 </Text>
@@ -310,7 +587,7 @@ export default function PatientSignupScreen() {
               )}
 
               <View style={styles.inputContainer}>
-                <Ionicons name="gender-male-female" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="gender-male-female" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <Text style={styles.pickerLabel}>Gender *</Text>
               </View>
               <View style={styles.pickerContainer}>
@@ -337,7 +614,7 @@ export default function PatientSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="location-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="location-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Address"
@@ -349,7 +626,7 @@ export default function PatientSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="water-drop" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="water-drop" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <Text style={styles.pickerLabel}>Blood Group</Text>
               </View>
               <View style={styles.pickerContainer}>
@@ -376,7 +653,7 @@ export default function PatientSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="person-add-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="person-add-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Emergency Contact Name"
@@ -388,7 +665,7 @@ export default function PatientSignupScreen() {
               </View>
 
               <View style={styles.inputContainer}>
-                <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+                <Ionicons name="call-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Emergency Contact Phone"
@@ -424,256 +701,3 @@ export default function PatientSignupScreen() {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    paddingTop: 40,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  iconContainer: {
-    width: 100,
-    height: 100,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-    alignSelf: "center",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "white",
-    marginBottom: 5,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
-    marginBottom: 30,
-    textAlign: "center",
-  },
-  card: {
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 25,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 15,
-    marginBottom: 10,
-  },
-  sectionDivider: {
-    height: 1,
-    backgroundColor: "#ddd",
-    marginBottom: 15,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
-    marginBottom: 12,
-    paddingHorizontal: 15,
-    backgroundColor: "#f9f9f9",
-    minHeight: 50,
-  },
-  inputIcon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#333",
-  },
-  pickerLabel: {
-    fontSize: 16,
-    color: "#666",
-    flex: 1,
-  },
-  pickerContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginHorizontal: -5,
-    marginBottom: 15,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
-    margin: 5,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  chipActive: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#4CAF50",
-  },
-  chipText: {
-    fontSize: 12,
-    color: "#666",
-    fontWeight: "500",
-  },
-  chipTextActive: {
-    color: "white",
-  },
-  button: {
-    backgroundColor: "#4CAF50",
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 15,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  errorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 15,
-    padding: 10,
-    backgroundColor: "#ffebee",
-    borderRadius: 8,
-  },
-  errorText: {
-    color: "#f44336",
-    marginLeft: 8,
-    fontSize: 14,
-    flex: 1,
-  },
-  datePickerModal: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  datePickerContent: {
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 20,
-    width: "90%",
-    maxWidth: 400,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 8,
-  },
-  datePickerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  datePickerButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  datePickerButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#f0f0f0",
-  },
-  datePickerConfirm: {
-    backgroundColor: "#4CAF50",
-  },
-  datePickerButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666",
-  },
-  selectedDate: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#4CAF50",
-  },
-  calendarGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-  },
-  calendarDay: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 8,
-    margin: 3,
-    backgroundColor: "#f9f9f9",
-  },
-  calendarDayEmpty: {
-    width: 40,
-    height: 40,
-    margin: 3,
-  },
-  calendarDaySelected: {
-    backgroundColor: "#4CAF50",
-  },
-  calendarDayToday: {
-    borderWidth: 2,
-    borderColor: "#2196F3",
-  },
-  calendarDayText: {
-    fontSize: 14,
-    color: "#333",
-  },
-  calendarDayTextSelected: {
-    color: "white",
-    fontWeight: "bold",
-  },
-  weekdayRow: {
-    flexDirection: "row",
-    marginBottom: 10,
-  },
-  weekday: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 5,
-  },
-  weekdayText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#666",
-  },
-});

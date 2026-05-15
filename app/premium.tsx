@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useStripe } from "../hooks/useStripe";
 import { StripePlanType } from "../utils/stripe";
+import { useTheme } from "../contexts/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -82,6 +83,8 @@ const PREMIUM_FEATURES = [
 ];
 
 export default function PremiumScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<StripePlanType>("yearly");
   const { isPro, loading, subscribe, cancelSubscription } = useStripe();
@@ -289,10 +292,10 @@ export default function PremiumScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.colors.background,
   },
   headerGradient: {
     position: "absolute",
@@ -316,7 +319,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -355,12 +358,12 @@ const styles = StyleSheet.create({
   },
   featureItem: {
     flexDirection: "row",
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
   },
   featureIcon: {
     width: 40,
@@ -377,12 +380,12 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   featureDescription: {
     fontSize: 14,
-    color: "#666",
+    color: theme.colors.textSecondary,
   },
   pricingContainer: {
     paddingHorizontal: 20,
@@ -391,7 +394,7 @@ const styles = StyleSheet.create({
   pricingTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 16,
   },
   plansContainer: {
@@ -402,11 +405,11 @@ const styles = StyleSheet.create({
   planCard: {
     flex: 1,
     minWidth: width / 3 - 20,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.card,
     borderRadius: 16,
     padding: 16,
     borderWidth: 2,
-    borderColor: "#e0e0e0",
+    borderColor: theme.colors.border,
     alignItems: "center",
     position: "relative",
   },
@@ -450,18 +453,18 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 8,
   },
   planPrice: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 4,
   },
   planPeriod: {
     fontSize: 12,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginBottom: 4,
   },
   planSavings: {
@@ -476,13 +479,13 @@ const styles = StyleSheet.create({
   },
   planOriginalPrice: {
     fontSize: 11,
-    color: "#999",
+    color: theme.colors.textTertiary,
     textDecorationLine: "line-through",
   },
   featuresTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 16,
   },
   purchaseButton: {
@@ -517,7 +520,7 @@ const styles = StyleSheet.create({
   trialInfoText: {
     flex: 1,
     fontSize: 12,
-    color: "#666",
+    color: theme.colors.textSecondary,
     marginLeft: 8,
     lineHeight: 18,
   },
@@ -528,7 +531,7 @@ const styles = StyleSheet.create({
   manageTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#333",
+    color: theme.colors.text,
     marginBottom: 10,
   },
   manageButtons: {
