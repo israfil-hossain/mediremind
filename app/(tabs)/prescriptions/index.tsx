@@ -1,39 +1,34 @@
-import { useState, useCallback, useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
+  ActivityIndicator,
   Alert,
   RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
-  ActivityIndicator,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../../contexts/AuthContext";
-import {
-  getPrescriptions,
-  deletePrescription,
-  Prescription,
-} from "../../../utils/storage";
-import { getFirestore, initializeFirebase } from "../../../utils/firebase";
-import { UserProfile } from "../../../utils/userManagement";
-import {
-  getUserPrescriptions,
-  SharedPrescription,
-  deletePrescription as deleteSharedPrescription,
-  getPendingPrescriptions,
-} from "../../../utils/prescriptionManager";
 import { useTheme } from "../../../contexts/ThemeContext";
 import {
+  Appointment,
   createAppointment,
   getPatientAppointments,
-  Appointment,
 } from "../../../utils/appointments";
+import { getFirestore, initializeFirebase } from "../../../utils/firebase";
+import {
+  deletePrescription as deleteSharedPrescription,
+  getPendingPrescriptions,
+  getUserPrescriptions,
+  SharedPrescription,
+} from "../../../utils/prescriptionManager";
+import { UserProfile } from "../../../utils/userManagement";
 
 interface DoctorConnection {
   id: string;
@@ -289,7 +284,7 @@ function MyDoctorScreen() {
     setRefreshing(false);
   }, []);
 
-const acceptedConnections = connections.filter((c) => c.status === "accepted");
+  const acceptedConnections = connections.filter((c) => c.status === "accepted");
   const pendingConnections = connections.filter((c) => c.status === "pending");
   const upcomingAppointments = myAppointments
     .filter((a) => a.status !== "cancelled")
@@ -365,7 +360,7 @@ const acceptedConnections = connections.filter((c) => c.status === "accepted");
         </View>
 
         {/* Upcoming Appointments */}
-        {upcomingAppointments.length > 0 && (
+        {upcomingAppointments && upcomingAppointments.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
             {upcomingAppointments.map((appt) => (
@@ -391,7 +386,7 @@ const acceptedConnections = connections.filter((c) => c.status === "accepted");
         )}
 
         {/* Pending Connections */}
-        {pendingConnections.length > 0 && (
+        {pendingConnections && pendingConnections.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Pending Requests</Text>
             {pendingConnections.map((connection) => (
@@ -416,14 +411,14 @@ const acceptedConnections = connections.filter((c) => c.status === "accepted");
         {/* Connected Doctors */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>My Doctors</Text>
-          {acceptedConnections.length === 0 ? (
+          {acceptedConnections && acceptedConnections.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={64} color="#CBD5E1" />
               <Text style={styles.emptyText}>No doctors connected yet</Text>
               <Text style={styles.emptySubtext}>Add a doctor above to get started</Text>
             </View>
           ) : (
-            acceptedConnections.map((connection) => (
+            acceptedConnections && acceptedConnections.map((connection) => (
               <TouchableOpacity
                 key={connection.id}
                 style={styles.doctorCard}
@@ -452,7 +447,7 @@ const acceptedConnections = connections.filter((c) => c.status === "accepted");
                 >
                   <Ionicons name="calendar-outline" size={20} color="white" />
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>

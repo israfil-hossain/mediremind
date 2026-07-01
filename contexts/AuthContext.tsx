@@ -1,38 +1,36 @@
+import { PaywallModal } from "@/components/PaywallModal";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import React, {
   createContext,
-  useContext,
-  useState,
-  useEffect,
   ReactNode,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
 import { AppState, AppStateStatus } from "react-native";
-import { useRouter } from "expo-router";
 import {
+  configureGoogleSignIn,
   FirebaseUser,
   getCurrentUser,
+  getLastSyncTimestamp,
+  initializeFirebase,
+  restoreDataFromFirebase,
   signInWithGoogle,
   signOut,
-  initializeFirebase,
-  configureGoogleSignIn,
-  restoreDataFromFirebase,
   syncAllDataToFirebase,
-  getLastSyncTimestamp,
 } from "../utils/firebase";
-import {
-  startNetworkMonitoring,
-  stopNetworkMonitoring,
-  getNetworkState,
-  NetworkState,
-} from "../utils/networkSync";
 import {
   startMedicationMonitoring,
   stopMedicationMonitoring,
 } from "../utils/medicationMonitoring";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getUserProfile, UserProfile } from "../utils/userManagement";
-import { checkSubscriptionStatus } from "../utils/stripe";
+import {
+  getNetworkState,
+  startNetworkMonitoring,
+  stopNetworkMonitoring
+} from "../utils/networkSync";
 import { isPremium as checkIsPremium } from "../utils/subscription";
-import PaywallModal from "../components/PaywallModal";
+import { getUserProfile, UserProfile } from "../utils/userManagement";
 
 const MEDICATIONS_KEY = "@medications";
 const DOSE_HISTORY_KEY = "@dose_history";
@@ -96,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    let checkNetworkInterval: NodeJS.Timeout;
+    let checkNetworkInterval: ReturnType<typeof setInterval>;
 
     const initialize = async () => {
       try {
@@ -183,6 +181,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       const firebaseUser = await signInWithGoogle();
+      if (!firebaseUser) {
+        // Sign-in was cancelled or unavailable
+        return;
+      }
       setUser(firebaseUser);
 
       // Load user profile

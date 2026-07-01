@@ -24,6 +24,98 @@ const PLANS: { type: StripePlanType; label: string; price: string; detail: strin
   { type: "lifetime", label: "Lifetime", price: "$299", detail: "one-time payment" },
 ];
 
+export function PaywallModal({ visible, onClose, onSuccess }: PaywallModalProps) {
+  const { theme } = useTheme();
+  const styles = createPaywallStyles(theme);
+  const [selectedPlan, setSelectedPlan] = useState<StripePlanType>("yearly");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubscribe = async () => {
+    try {
+      setIsLoading(true);
+      const success = await subscribe(selectedPlan);
+
+      if (success) {
+        Alert.alert("Welcome!", "Your Premium access is now active.");
+        onSuccess();
+      } else {
+        // User cancelled
+        onClose();
+      }
+    } catch (e: any) {
+      console.error("Payment error:", e);
+      Alert.alert(
+        "Payment Failed",
+        e.message || "Something went wrong. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        <View style={styles.container}>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Ionicons name="close" size={24} color="#666" />
+          </TouchableOpacity>
+
+          <Text style={styles.title}>Upgrade to Premium</Text>
+          <Text style={styles.subtitle}>
+            Unlock unlimited medications, cloud backup, analytics, and more.
+          </Text>
+
+          {PLANS.map((plan) => (
+            <TouchableOpacity
+              key={plan.type}
+              style={[
+                styles.planOption,
+                selectedPlan === plan.type && styles.planOptionSelected,
+              ]}
+              onPress={() => setSelectedPlan(plan.type)}
+              disabled={isLoading}
+            >
+              <View style={styles.planRadio}>
+                {selectedPlan === plan.type && <View style={styles.planRadioInner} />}
+              </View>
+              <View style={styles.planInfo}>
+                <Text style={styles.planLabel}>{plan.label}</Text>
+                <Text style={styles.planDetail}>{plan.detail}</Text>
+              </View>
+              <Text style={styles.planPrice}>{plan.price}</Text>
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            style={[styles.subscribeButton, isLoading && styles.subscribeButtonDisabled]}
+            onPress={handleSubscribe}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.subscribeButtonText}>
+                {selectedPlan === "lifetime" ? "Get Lifetime Access" : "Subscribe Now"}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.disclaimer}>
+            Secure payment powered by Stripe. Cancel anytime.
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function createPaywallStyles(theme: any) {
   return StyleSheet.create({
     overlay: {

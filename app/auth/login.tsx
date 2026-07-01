@@ -1,31 +1,32 @@
-import { useState, useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  Alert,
   ActivityIndicator,
-  TextInput,
+  Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { useAuth } from "../../contexts/AuthContext";
+import { useTheme } from "../../contexts/ThemeContext";
 import {
-  signInWithEmail,
-  getCurrentUser,
-  sendPasswordResetEmail,
-  signInWithGoogle,
-  isFirebaseAvailable,
-  initializeFirebase,
   configureGoogleSignIn,
+  getCurrentUser,
+  initializeFirebase,
+  isFirebaseAvailable,
+  sendPasswordResetEmail,
+  signInWithEmail,
+  signInWithGoogle,
 } from "../../utils/firebase";
 import { getUserProfile } from "../../utils/userManagement";
-import { useTheme } from "../../contexts/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -228,6 +229,7 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const { theme } = useTheme();
+  const { refreshUser } = useAuth();
   const styles = createLoginStyles(theme);
 
   // Form fields
@@ -309,6 +311,11 @@ export default function LoginScreen() {
       }
 
       console.log("✓ Logged in as:", profile.role);
+
+      // Refresh the auth context so the tab layout sees the logged-in user
+      // (otherwise it redirects straight back to /auth).
+      await refreshUser();
+
       router.replace("/(tabs)");
     } catch (err: any) {
       const errorMessage = err.message || "An error occurred during sign in";
@@ -367,6 +374,8 @@ export default function LoginScreen() {
       const user = await signInWithGoogle();
 
       if (user) {
+        // Refresh the auth context so the tab layout sees the logged-in user.
+        await refreshUser();
         router.replace("/(tabs)");
       }
     } catch (err: any) {
@@ -377,7 +386,6 @@ export default function LoginScreen() {
     }
   };
 
-  const styles = createStyles(theme);
 
   if (isInitializing) {
     return (
