@@ -5,7 +5,11 @@ const SUBSCRIPTION_KEY = "@subscription";
 const SUBSCRIPTION_TYPE_KEY = "@subscription_type";
 const SUBSCRIPTION_EXPIRY_KEY = "@subscription_expiry";
 
-export type SubscriptionType = "free" | "premium_monthly" | "premium_yearly" | "premium_lifetime";
+export type SubscriptionType =
+  | "free"
+  | "premium_monthly"
+  | "premium_yearly"
+  | "premium_lifetime";
 
 export interface Subscription {
   type: SubscriptionType;
@@ -53,7 +57,9 @@ export async function getSubscription(): Promise<Subscription> {
   }
 }
 
-export async function setSubscription(subscription: Subscription): Promise<void> {
+export async function setSubscription(
+  subscription: Subscription,
+): Promise<void> {
   try {
     await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(subscription));
   } catch (error) {
@@ -146,7 +152,7 @@ export async function canUseAdvancedAnalytics(): Promise<boolean> {
 // Purchase subscription (local storage update — actual payment handled by Stripe)
 export async function purchaseSubscription(
   type: Exclude<SubscriptionType, "free">,
-  isTrial: boolean = false
+  isTrial: boolean = false,
 ): Promise<Subscription> {
   const now = new Date();
   let expiryDate: string | undefined;
