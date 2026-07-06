@@ -6,15 +6,16 @@ module.exports = {
     version: "1.0.0",
     orientation: "portrait",
     description: "Never miss your medication again! MediRemind helps you manage prescriptions, set reminders, track your medication history, and stay connected with your healthcare provider. Perfect for managing daily medications, vitamins, and supplements.",
-    extra: {
-      eas: {
-        projectId: "910976ca-6231-4fd6-aa21-7c9c7e9758b2"
-      }
-    },
     icon: "./assets/images/icon.png",
     scheme: "mediremind",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
+    extra: {
+      eas: {
+        projectId: "489c9426-41bf-43f2-b3f4-7ce9bb6c57ae"
+      }
+    },
+    owner: "jahirul69",
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.flowentech.mediremind",

@@ -228,6 +228,238 @@ export async function searchPatientsByName(
   }
 }
 
+export async function getUserById(
+  userId: string
+): Promise<UserProfile | null> {
+  const projectId = ENV.FIREBASE_PROJECT_ID;
+  if (!projectId) return null;
+
+  const idToken = await getIdToken();
+  if (!idToken) return null;
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${userId}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const doc = await response.json();
+    return fromFirestoreDocument(doc) as UserProfile;
+  } catch (error) {
+    console.error("Error fetching user by ID:", error);
+    return null;
+  }
+}
+
+export async function searchDoctorsByEmail(
+  email: string
+): Promise<(UserProfile & { id: string })[]> {
+  try {
+    const documents = await runQuery({
+      from: [{ collectionId: "users" }],
+      where: {
+        compositeFilter: {
+          op: "AND",
+          filters: [
+            {
+              fieldFilter: {
+                field: { fieldPath: "email" },
+                op: "EQUAL",
+                value: { stringValue: email.toLowerCase().trim() },
+              },
+            },
+            {
+              fieldFilter: {
+                field: { fieldPath: "role" },
+                op: "EQUAL",
+                value: { stringValue: "doctor" },
+              },
+            },
+          ],
+        },
+      },
+      limit: 10,
+    });
+
+    return documents.map((doc: any) => {
+      const id = doc.name.split("/").pop();
+      return { ...fromFirestoreDocument(doc), id } as UserProfile & {
+        id: string;
+      };
+    });
+  } catch (error) {
+    console.error("Error searching doctors by email:", error);
+    return [];
+  }
+}
+
+export async function searchDoctors(
+  query: string
+): Promise<{ doctors: (UserProfile & { id: string })[]; searchTypes: string[] }> {
+  const trimmed = query.trim();
+  if (!trimmed) return { doctors: [], searchTypes: [] };
+
+  const results: (UserProfile & { id: string })[] = [];
+  const searchTypes: string[] = [];
+  const seenIds = new Set<string>();
+
+  if (trimmed.includes("@")) {
+    searchTypes.push("email");
+    const emailResults = await searchDoctorsByEmail(trimmed);
+    for (const d of emailResults) {
+      if (!seenIds.has(d.id)) {
+        seenIds.add(d.id);
+        results.push(d);
+      }
+    }
+  }
+
+  return { doctors: results, searchTypes };
+}
+
+export async function checkExistingPatientConnection(
+  doctorId: string,
+  patientId: string
+): Promise<boolean> {
+  try {
+    const documents = await runQuery({
+      from: [{ collectionId: "connections" }],
+      where: {
+        compositeFilter: {
+          op: "AND",
+          filters: [
+            {
+              fieldFilter: {
+                field: { fieldPath: "doctorId" },
+                op: "EQUAL",
+                value: { stringValue: doctorId },
+              },
+            },
+            {
+              fieldFilter: {
+                field: { fieldPath: "patientId" },
+                op: "EQUAL",
+                value: { stringValue: patientId },
+              },
+            },
+          ],
+        },
+      },
+      limit: 1,
+    });
+
+    return documents.length > 0;
+  } catch (error) {
+    console.error("Error checking existing connection:", error);
+    return false;
+  }
+}
+
+export async function createPatientConnection(
+  doctorId: string,
+  patientId: string
+): Promise<string | null> {
+  const projectId = ENV.FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    throw new Error("Firebase project ID not configured");
+  }
+
+  const idToken = await getIdToken();
+  if (!idToken) {
+    throw new Error("Not authenticated");
+  }
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/connections`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        fields: {
+          doctorId: { stringValue: doctorId },
+          patientId: { stringValue: patientId },
+          status: { stringValue: "pending" },
+          initiatedBy: { stringValue: "patient" },
+          createdAt: { timestampValue: new Date().toISOString() },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Error creating patient connection:", response.status, errorText);
+      throw new Error("Failed to create connection");
+    }
+
+    const result = await response.json();
+    return result.name.split("/").pop();
+  } catch (error) {
+    console.error("Error creating patient connection:", error);
+    throw error;
+  }
+}
+
+export async function createPatientInvitation(
+  patientId: string,
+  patientEmail: string,
+  doctorEmail: string
+): Promise<string | null> {
+  const projectId = ENV.FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    throw new Error("Firebase project ID not configured");
+  }
+
+  const idToken = await getIdToken();
+  if (!idToken) {
+    throw new Error("Not authenticated");
+  }
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/invitations`;
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        fields: {
+          invitedBy: { stringValue: patientId },
+          patientEmail: { stringValue: patientEmail.toLowerCase().trim() },
+          doctorEmail: { stringValue: doctorEmail.toLowerCase().trim() },
+          status: { stringValue: "pending" },
+          createdAt: { timestampValue: new Date().toISOString() },
+          expiresAt: { timestampValue: expiresAt.toISOString() },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Error creating patient invitation:", response.status, errorText);
+      throw new Error("Failed to send invitation");
+    }
+
+    const result = await response.json();
+    return result.name.split("/").pop();
+  } catch (error) {
+    console.error("Error creating patient invitation:", error);
+    throw error;
+  }
+}
+
 export async function searchPatients(
   query: string
 ): Promise<{ patients: (UserProfile & { id: string })[]; searchTypes: string[] }> {

@@ -198,42 +198,218 @@ export async function getUserPrescriptions(
     const firestore = getFirestore();
 
     if (firestore) {
-      // Use native Firestore if available
-      let query;
+      try {
+        // Use native Firestore if available
+        let query;
 
-      if (role === "doctor") {
-        query = firestore()
-          .collection("prescriptions")
-          .where("doctorId", "==", userId)
-          .orderBy("createdAt", "desc");
-      } else {
-        query = firestore()
-          .collection("prescriptions")
-          .where("patientId", "==", userId)
-          .orderBy("createdAt", "desc");
+        if (role === "doctor") {
+          query = firestore()
+            .collection("prescriptions")
+            .where("doctorId", "==", userId)
+            .orderBy("createdAt", "desc");
+        } else {
+          query = firestore()
+            .collection("prescriptions")
+            .where("patientId", "==", userId)
+            .orderBy("createdAt", "desc");
+        }
+
+        const snapshot = await query.get();
+        const prescriptions: SharedPrescription[] = [];
+
+        snapshot.forEach((doc: any) => {
+          prescriptions.push({
+            id: doc.id,
+            ...doc.data(),
+          } as SharedPrescription);
+        });
+
+        return prescriptions;
+      } catch (nativeError) {
+        console.log("Native Firestore query failed, falling back to REST API:", nativeError);
+        // Fall through to REST API fallback
       }
-
-      const snapshot = await query.get();
-      const prescriptions: SharedPrescription[] = [];
-
-      snapshot.forEach((doc: any) => {
-        prescriptions.push({
-          id: doc.id,
-          ...doc.data(),
-        } as SharedPrescription);
-      });
-
-      return prescriptions;
     }
 
-    // Fallback: Return empty array if Firestore not available
-    // In production, you'd want to use REST API here too
-    console.log("Firestore not available, returning empty prescriptions list");
-    return [];
+    // REST API fallback: fetch all prescriptions and filter client-side
+    const projectId = ENV.FIREBASE_PROJECT_ID;
+    if (!projectId) {
+      console.log("Firebase project ID not configured, returning empty list");
+      return [];
+    }
+
+    const idToken = await getIdToken();
+    if (!idToken) {
+      console.log("Not authenticated, returning empty prescriptions list");
+      return [];
+    }
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.error("REST API error fetching prescriptions:", response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    if (!data.documents) return [];
+
+    const fieldFilter = role === "doctor" ? "doctorId" : "patientId";
+    const prescriptions: SharedPrescription[] = [];
+
+    for (const doc of data.documents) {
+      const fields = doc.fields || {};
+      const fieldValue = fields[fieldFilter]?.stringValue;
+
+      if (fieldValue === userId) {
+        const prescription: any = {
+          id: doc.name.split("/").pop(),
+          createdBy: fields.createdBy?.stringValue || "",
+          createdByRole: fields.createdByRole?.stringValue || "doctor",
+          patientId: fields.patientId?.stringValue || "",
+          title: fields.title?.stringValue || "",
+          status: fields.status?.stringValue || "pending",
+          sharedWith: fields.sharedWith?.arrayValue?.values?.map((v: any) => v.stringValue) || [],
+          createdAt: fields.createdAt?.timestampValue || null,
+          updatedAt: fields.updatedAt?.timestampValue || null,
+        };
+
+        if (fields.doctorId) prescription.doctorId = fields.doctorId.stringValue;
+        if (fields.diagnosis) prescription.diagnosis = fields.diagnosis.stringValue;
+        if (fields.notes) prescription.notes = fields.notes.stringValue;
+        if (fields.instructions) prescription.instructions = fields.instructions.stringValue;
+        if (fields.patientName) prescription.patientName = fields.patientName.stringValue;
+        if (fields.patientAge) prescription.patientAge = fields.patientAge.stringValue;
+        if (fields.patientGender) prescription.patientGender = fields.patientGender.stringValue;
+        if (fields.patientPhone) prescription.patientPhone = fields.patientPhone.stringValue;
+        if (fields.doctorName) prescription.doctorName = fields.doctorName.stringValue;
+        if (fields.doctorSpecialty) prescription.doctorSpecialty = fields.doctorSpecialty.stringValue;
+        if (fields.doctorPhone) prescription.doctorPhone = fields.doctorPhone.stringValue;
+        if (fields.doctorLicense) prescription.doctorLicense = fields.doctorLicense.stringValue;
+        if (fields.clinicName) prescription.clinicName = fields.clinicName.stringValue;
+
+        if (fields.medications?.arrayValue?.values) {
+          prescription.medications = fields.medications.arrayValue.values.map((medVal: any) => {
+            const medFields = medVal.mapValue?.fields || {};
+            return {
+              name: medFields.name?.stringValue || "",
+              dosage: medFields.dosage?.stringValue,
+              frequency: medFields.frequency?.stringValue,
+              duration: medFields.duration?.stringValue,
+              instructions: medFields.instructions?.stringValue,
+            };
+          });
+        } else {
+          prescription.medications = [];
+        }
+
+        prescriptions.push(prescription as SharedPrescription);
+      }
+    }
+
+    // Sort by createdAt descending
+    prescriptions.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    return prescriptions;
   } catch (error) {
     console.error("Error getting prescriptions:", error);
-    return []; // Return empty array instead of throwing
+    return [];
   }
+}
+
+/**
+ * Parse a Firestore REST API document into a SharedPrescription
+ */
+function parsePrescriptionFromREST(doc: any): SharedPrescription {
+  const fields = doc.fields || {};
+  const prescription: any = {
+    id: doc.name.split("/").pop(),
+    createdBy: fields.createdBy?.stringValue || "",
+    createdByRole: fields.createdByRole?.stringValue || "doctor",
+    patientId: fields.patientId?.stringValue || "",
+    title: fields.title?.stringValue || "",
+    status: fields.status?.stringValue || "pending",
+    sharedWith: fields.sharedWith?.arrayValue?.values?.map((v: any) => v.stringValue) || [],
+    createdAt: fields.createdAt?.timestampValue || null,
+    updatedAt: fields.updatedAt?.timestampValue || null,
+  };
+
+  if (fields.doctorId) prescription.doctorId = fields.doctorId.stringValue;
+  if (fields.diagnosis) prescription.diagnosis = fields.diagnosis.stringValue;
+  if (fields.notes) prescription.notes = fields.notes.stringValue;
+  if (fields.instructions) prescription.instructions = fields.instructions.stringValue;
+  if (fields.patientName) prescription.patientName = fields.patientName.stringValue;
+  if (fields.patientAge) prescription.patientAge = fields.patientAge.stringValue;
+  if (fields.patientGender) prescription.patientGender = fields.patientGender.stringValue;
+  if (fields.patientPhone) prescription.patientPhone = fields.patientPhone.stringValue;
+  if (fields.doctorName) prescription.doctorName = fields.doctorName.stringValue;
+  if (fields.doctorSpecialty) prescription.doctorSpecialty = fields.doctorSpecialty.stringValue;
+  if (fields.doctorPhone) prescription.doctorPhone = fields.doctorPhone.stringValue;
+  if (fields.doctorLicense) prescription.doctorLicense = fields.doctorLicense.stringValue;
+  if (fields.clinicName) prescription.clinicName = fields.clinicName.stringValue;
+
+  if (fields.medications?.arrayValue?.values) {
+    prescription.medications = fields.medications.arrayValue.values.map((medVal: any) => {
+      const medFields = medVal.mapValue?.fields || {};
+      return {
+        name: medFields.name?.stringValue || "",
+        dosage: medFields.dosage?.stringValue,
+        frequency: medFields.frequency?.stringValue,
+        duration: medFields.duration?.stringValue,
+        instructions: medFields.instructions?.stringValue,
+      };
+    });
+  } else {
+    prescription.medications = [];
+  }
+
+  return prescription as SharedPrescription;
+}
+
+/**
+ * Build REST API PATCH fields from partial prescription updates
+ */
+function buildRestPatchFields(updates: Partial<SharedPrescription>): Record<string, any> {
+  const fields: Record<string, any> = {};
+
+  if (updates.title !== undefined) fields.title = { stringValue: updates.title };
+  if (updates.diagnosis !== undefined) fields.diagnosis = { stringValue: updates.diagnosis };
+  if (updates.notes !== undefined) fields.notes = { stringValue: updates.notes };
+  if (updates.instructions !== undefined) fields.instructions = { stringValue: updates.instructions };
+  if (updates.status !== undefined) fields.status = { stringValue: updates.status };
+  if (updates.patientName !== undefined) fields.patientName = { stringValue: updates.patientName };
+  if (updates.doctorName !== undefined) fields.doctorName = { stringValue: updates.doctorName };
+  if (updates.rejectionReason !== undefined) fields.rejectionReason = { stringValue: updates.rejectionReason };
+
+  if (updates.medications !== undefined) {
+    fields.medications = {
+      arrayValue: {
+        values: (updates.medications || []).map((med) => ({
+          mapValue: {
+            fields: {
+              name: { stringValue: med.name },
+              ...(med.dosage && { dosage: { stringValue: med.dosage } }),
+              ...(med.frequency && { frequency: { stringValue: med.frequency } }),
+              ...(med.duration && { duration: { stringValue: med.duration } }),
+              ...(med.instructions && { instructions: { stringValue: med.instructions } }),
+            },
+          },
+        })),
+      },
+    };
+  }
+
+  return fields;
 }
 
 /**
@@ -242,28 +418,53 @@ export async function getUserPrescriptions(
 export async function getPrescriptionById(
   prescriptionId: string
 ): Promise<SharedPrescription | null> {
-  const firestore = getFirestore();
-  if (!firestore) {
-    throw new Error("Firestore not initialized");
-  }
-
   try {
-    const doc = await firestore()
-      .collection("prescriptions")
-      .doc(prescriptionId)
-      .get();
+    await initializeFirebase();
+    const firestore = getFirestore();
 
-    if (!doc.exists) {
+    if (firestore) {
+      try {
+        const doc = await firestore()
+          .collection("prescriptions")
+          .doc(prescriptionId)
+          .get();
+
+        if (!doc.exists) {
+          return null;
+        }
+
+        return {
+          id: doc.id,
+          ...doc.data(),
+        } as SharedPrescription;
+      } catch (nativeError) {
+        console.log("Native Firestore getPrescriptionById failed, falling back to REST API:", nativeError);
+      }
+    }
+
+    // REST API fallback
+    const projectId = ENV.FIREBASE_PROJECT_ID;
+    if (!projectId) return null;
+
+    const idToken = await getIdToken();
+    if (!idToken) return null;
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+
+    if (!response.ok) {
+      console.error("REST API error fetching prescription:", response.status);
       return null;
     }
 
-    return {
-      id: doc.id,
-      ...doc.data(),
-    } as SharedPrescription;
+    const doc = await response.json();
+    return parsePrescriptionFromREST(doc);
   } catch (error) {
     console.error("Error getting prescription:", error);
-    throw new Error("Failed to get prescription");
+    return null;
   }
 }
 
@@ -274,19 +475,52 @@ export async function updatePrescription(
   prescriptionId: string,
   updates: Partial<SharedPrescription>
 ): Promise<void> {
-  const firestore = getFirestore();
-  if (!firestore) {
-    throw new Error("Firestore not initialized");
-  }
-
   try {
-    await firestore()
-      .collection("prescriptions")
-      .doc(prescriptionId)
-      .update({
-        ...updates,
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
+    await initializeFirebase();
+    const firestore = getFirestore();
+
+    if (firestore) {
+      try {
+        await firestore()
+          .collection("prescriptions")
+          .doc(prescriptionId)
+          .update({
+            ...updates,
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+        return;
+      } catch (nativeError) {
+        console.log("Native Firestore updatePrescription failed, falling back to REST API:", nativeError);
+      }
+    }
+
+    // REST API fallback
+    const projectId = ENV.FIREBASE_PROJECT_ID;
+    if (!projectId) throw new Error("Firebase project ID not configured");
+
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error("Not authenticated");
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
+    const patchFields = {
+      fields: {
+        ...buildRestPatchFields(updates),
+        updatedAt: { timestampValue: new Date().toISOString() },
+      },
+    };
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify(patchFields),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update prescription via REST API");
+    }
   } catch (error) {
     console.error("Error updating prescription:", error);
     throw new Error("Failed to update prescription");
@@ -297,13 +531,35 @@ export async function updatePrescription(
  * Delete a prescription
  */
 export async function deletePrescription(prescriptionId: string): Promise<void> {
-  const firestore = getFirestore();
-  if (!firestore) {
-    throw new Error("Firestore not initialized");
-  }
-
   try {
-    await firestore().collection("prescriptions").doc(prescriptionId).delete();
+    await initializeFirebase();
+    const firestore = getFirestore();
+
+    if (firestore) {
+      try {
+        await firestore().collection("prescriptions").doc(prescriptionId).delete();
+        return;
+      } catch (nativeError) {
+        console.log("Native Firestore deletePrescription failed, falling back to REST API:", nativeError);
+      }
+    }
+
+    // REST API fallback
+    const projectId = ENV.FIREBASE_PROJECT_ID;
+    if (!projectId) throw new Error("Firebase project ID not configured");
+
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error("Not authenticated");
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete prescription via REST API");
+    }
   } catch (error) {
     console.error("Error deleting prescription:", error);
     throw new Error("Failed to delete prescription");
@@ -320,24 +576,117 @@ export async function getPendingPrescriptions(
     await initializeFirebase();
     const firestore = getFirestore();
 
-    if (!firestore) {
-      console.log("Firestore not available, returning empty list");
+    if (firestore) {
+      try {
+        const snapshot = await firestore()
+          .collection("prescriptions")
+          .where("patientId", "==", patientId)
+          .where("status", "==", "pending")
+          .orderBy("createdAt", "desc")
+          .get();
+
+        const prescriptions: SharedPrescription[] = [];
+        snapshot.forEach((doc: any) => {
+          prescriptions.push({
+            id: doc.id,
+            ...doc.data(),
+          } as SharedPrescription);
+        });
+
+        return prescriptions;
+      } catch (nativeError) {
+        console.log("Native Firestore query failed for pending prescriptions, falling back to REST API:", nativeError);
+        // Fall through to REST API fallback
+      }
+    }
+
+    // REST API fallback: fetch all prescriptions and filter client-side
+    const projectId = ENV.FIREBASE_PROJECT_ID;
+    if (!projectId) {
+      console.log("Firebase project ID not configured, returning empty list");
       return [];
     }
 
-    const snapshot = await firestore()
-      .collection("prescriptions")
-      .where("patientId", "==", patientId)
-      .where("status", "==", "pending")
-      .orderBy("createdAt", "desc")
-      .get();
+    const idToken = await getIdToken();
+    if (!idToken) {
+      console.log("Not authenticated, returning empty pending prescriptions list");
+      return [];
+    }
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.error("REST API error fetching pending prescriptions:", response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    if (!data.documents) return [];
 
     const prescriptions: SharedPrescription[] = [];
-    snapshot.forEach((doc: any) => {
-      prescriptions.push({
-        id: doc.id,
-        ...doc.data(),
-      } as SharedPrescription);
+
+    for (const doc of data.documents) {
+      const fields = doc.fields || {};
+      const docPatientId = fields.patientId?.stringValue;
+      const docStatus = fields.status?.stringValue;
+
+      if (docPatientId === patientId && docStatus === "pending") {
+        const prescription: any = {
+          id: doc.name.split("/").pop(),
+          createdBy: fields.createdBy?.stringValue || "",
+          createdByRole: fields.createdByRole?.stringValue || "doctor",
+          patientId: fields.patientId?.stringValue || "",
+          title: fields.title?.stringValue || "",
+          status: fields.status?.stringValue || "pending",
+          sharedWith: fields.sharedWith?.arrayValue?.values?.map((v: any) => v.stringValue) || [],
+          createdAt: fields.createdAt?.timestampValue || null,
+          updatedAt: fields.updatedAt?.timestampValue || null,
+        };
+
+        if (fields.doctorId) prescription.doctorId = fields.doctorId.stringValue;
+        if (fields.diagnosis) prescription.diagnosis = fields.diagnosis.stringValue;
+        if (fields.notes) prescription.notes = fields.notes.stringValue;
+        if (fields.instructions) prescription.instructions = fields.instructions.stringValue;
+        if (fields.patientName) prescription.patientName = fields.patientName.stringValue;
+        if (fields.patientAge) prescription.patientAge = fields.patientAge.stringValue;
+        if (fields.patientGender) prescription.patientGender = fields.patientGender.stringValue;
+        if (fields.patientPhone) prescription.patientPhone = fields.patientPhone.stringValue;
+        if (fields.doctorName) prescription.doctorName = fields.doctorName.stringValue;
+        if (fields.doctorSpecialty) prescription.doctorSpecialty = fields.doctorSpecialty.stringValue;
+        if (fields.doctorPhone) prescription.doctorPhone = fields.doctorPhone.stringValue;
+        if (fields.doctorLicense) prescription.doctorLicense = fields.doctorLicense.stringValue;
+        if (fields.clinicName) prescription.clinicName = fields.clinicName.stringValue;
+
+        if (fields.medications?.arrayValue?.values) {
+          prescription.medications = fields.medications.arrayValue.values.map((medVal: any) => {
+            const medFields = medVal.mapValue?.fields || {};
+            return {
+              name: medFields.name?.stringValue || "",
+              dosage: medFields.dosage?.stringValue,
+              frequency: medFields.frequency?.stringValue,
+              duration: medFields.duration?.stringValue,
+              instructions: medFields.instructions?.stringValue,
+            };
+          });
+        } else {
+          prescription.medications = [];
+        }
+
+        prescriptions.push(prescription as SharedPrescription);
+      }
+    }
+
+    // Sort by createdAt descending
+    prescriptions.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
     });
 
     return prescriptions;
@@ -358,45 +707,123 @@ export async function approvePrescription(
     await initializeFirebase();
     const firestore = getFirestore();
 
-    if (!firestore) {
-      throw new Error("Firestore not available");
+    if (firestore) {
+      try {
+        // Get the prescription first
+        const prescriptionDoc = await firestore()
+          .collection("prescriptions")
+          .doc(prescriptionId)
+          .get();
+
+        if (!prescriptionDoc.exists) {
+          throw new Error("Prescription not found");
+        }
+
+        const prescription = prescriptionDoc.data() as SharedPrescription;
+
+        // Update prescription status
+        await firestore()
+          .collection("prescriptions")
+          .doc(prescriptionId)
+          .update({
+            status: "approved",
+            approvedAt: firestore.FieldValue.serverTimestamp(),
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+
+        // Notify the doctor
+        if (prescription.doctorId) {
+          await firestore().collection("notifications").add({
+            userId: prescription.doctorId,
+            type: "prescription_approved",
+            title: "Prescription Approved",
+            message: `${prescription.patientName} has approved your prescription: ${prescription.title}`,
+            data: {
+              prescriptionId,
+              patientId,
+            },
+            read: false,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+          });
+        }
+
+        // Auto-create medications from approved prescription
+        await createMedicationsFromPrescription(prescription);
+        return;
+      } catch (nativeError) {
+        console.log("Native Firestore approvePrescription failed, falling back to REST API:", nativeError);
+      }
     }
 
-    // Get the prescription first
-    const prescriptionDoc = await firestore()
-      .collection("prescriptions")
-      .doc(prescriptionId)
-      .get();
+    // REST API fallback
+    const projectId = ENV.FIREBASE_PROJECT_ID;
+    if (!projectId) throw new Error("Firebase project ID not configured");
 
-    if (!prescriptionDoc.exists) {
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error("Not authenticated");
+
+    // Get the prescription first via REST
+    const getUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
+    const getResponse = await fetch(getUrl, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+
+    if (!getResponse.ok) {
       throw new Error("Prescription not found");
     }
 
-    const prescription = prescriptionDoc.data() as SharedPrescription;
+    const prescriptionDoc = await getResponse.json();
+    const prescription = parsePrescriptionFromREST(prescriptionDoc);
 
-    // Update prescription status
-    await firestore()
-      .collection("prescriptions")
-      .doc(prescriptionId)
-      .update({
-        status: "approved",
-        approvedAt: firestore.FieldValue.serverTimestamp(),
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
-
-    // Notify the doctor
-    if (prescription.doctorId) {
-      await firestore().collection("notifications").add({
-        userId: prescription.doctorId,
-        type: "prescription_approved",
-        title: "Prescription Approved",
-        message: `${prescription.patientName} has approved your prescription: ${prescription.title}`,
-        data: {
-          prescriptionId,
-          patientId,
+    // Update prescription status via REST PATCH
+    const patchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
+    const patchResponse = await fetch(patchUrl, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        fields: {
+          status: { stringValue: "approved" },
+          approvedAt: { timestampValue: new Date().toISOString() },
+          updatedAt: { timestampValue: new Date().toISOString() },
         },
-        read: false,
-        createdAt: firestore.FieldValue.serverTimestamp(),
+      }),
+    });
+
+    if (!patchResponse.ok) {
+      throw new Error("Failed to approve prescription via REST API");
+    }
+
+    // Notify the doctor via REST
+    if (prescription.doctorId) {
+      const notifUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/notifications`;
+      await fetch(notifUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          fields: {
+            userId: { stringValue: prescription.doctorId },
+            type: { stringValue: "prescription_approved" },
+            title: { stringValue: "Prescription Approved" },
+            message: { stringValue: `${prescription.patientName} has approved your prescription: ${prescription.title}` },
+            data: {
+              mapValue: {
+                fields: {
+                  prescriptionId: { stringValue: prescriptionId },
+                  patientId: { stringValue: patientId },
+                },
+              },
+            },
+            read: { booleanValue: false },
+            createdAt: { timestampValue: new Date().toISOString() },
+          },
+        }),
       });
     }
 
@@ -420,47 +847,124 @@ export async function rejectPrescription(
     await initializeFirebase();
     const firestore = getFirestore();
 
-    if (!firestore) {
-      throw new Error("Firestore not available");
+    if (firestore) {
+      try {
+        // Get the prescription first
+        const prescriptionDoc = await firestore()
+          .collection("prescriptions")
+          .doc(prescriptionId)
+          .get();
+
+        if (!prescriptionDoc.exists) {
+          throw new Error("Prescription not found");
+        }
+
+        const prescription = prescriptionDoc.data() as SharedPrescription;
+
+        // Update prescription status
+        await firestore()
+          .collection("prescriptions")
+          .doc(prescriptionId)
+          .update({
+            status: "rejected",
+            rejectedAt: firestore.FieldValue.serverTimestamp(),
+            rejectionReason: reason || "",
+            updatedAt: firestore.FieldValue.serverTimestamp(),
+          });
+
+        // Notify the doctor
+        if (prescription.doctorId) {
+          await firestore().collection("notifications").add({
+            userId: prescription.doctorId,
+            type: "prescription_rejected",
+            title: "Prescription Rejected",
+            message: `${prescription.patientName} has rejected your prescription: ${prescription.title}`,
+            data: {
+              prescriptionId,
+              patientId,
+              reason: reason || "",
+            },
+            read: false,
+            createdAt: firestore.FieldValue.serverTimestamp(),
+          });
+        }
+        return;
+      } catch (nativeError) {
+        console.log("Native Firestore rejectPrescription failed, falling back to REST API:", nativeError);
+      }
     }
 
-    // Get the prescription first
-    const prescriptionDoc = await firestore()
-      .collection("prescriptions")
-      .doc(prescriptionId)
-      .get();
+    // REST API fallback
+    const projectId = ENV.FIREBASE_PROJECT_ID;
+    if (!projectId) throw new Error("Firebase project ID not configured");
 
-    if (!prescriptionDoc.exists) {
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error("Not authenticated");
+
+    // Get the prescription first via REST
+    const getUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
+    const getResponse = await fetch(getUrl, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+
+    if (!getResponse.ok) {
       throw new Error("Prescription not found");
     }
 
-    const prescription = prescriptionDoc.data() as SharedPrescription;
+    const prescriptionDoc = await getResponse.json();
+    const prescription = parsePrescriptionFromREST(prescriptionDoc);
 
-    // Update prescription status
-    await firestore()
-      .collection("prescriptions")
-      .doc(prescriptionId)
-      .update({
-        status: "rejected",
-        rejectedAt: firestore.FieldValue.serverTimestamp(),
-        rejectionReason: reason || "",
-        updatedAt: firestore.FieldValue.serverTimestamp(),
-      });
-
-    // Notify the doctor
-    if (prescription.doctorId) {
-      await firestore().collection("notifications").add({
-        userId: prescription.doctorId,
-        type: "prescription_rejected",
-        title: "Prescription Rejected",
-        message: `${prescription.patientName} has rejected your prescription: ${prescription.title}`,
-        data: {
-          prescriptionId,
-          patientId,
-          reason: reason || "",
+    // Update prescription status via REST PATCH
+    const patchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
+    const patchResponse = await fetch(patchUrl, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        fields: {
+          status: { stringValue: "rejected" },
+          rejectedAt: { timestampValue: new Date().toISOString() },
+          rejectionReason: { stringValue: reason || "" },
+          updatedAt: { timestampValue: new Date().toISOString() },
         },
-        read: false,
-        createdAt: firestore.FieldValue.serverTimestamp(),
+      }),
+    });
+
+    if (!patchResponse.ok) {
+      throw new Error("Failed to reject prescription via REST API");
+    }
+
+    // Notify the doctor via REST
+    if (prescription.doctorId) {
+      const notifUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/notifications`;
+      await fetch(notifUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          fields: {
+            userId: { stringValue: prescription.doctorId },
+            type: { stringValue: "prescription_rejected" },
+            title: { stringValue: "Prescription Rejected" },
+            message: { stringValue: `${prescription.patientName} has rejected your prescription: ${prescription.title}` },
+            data: {
+              mapValue: {
+                fields: {
+                  prescriptionId: { stringValue: prescriptionId },
+                  patientId: { stringValue: patientId },
+                  reason: { stringValue: reason || "" },
+                },
+              },
+            },
+            read: { booleanValue: false },
+            createdAt: { timestampValue: new Date().toISOString() },
+          },
+        }),
       });
     }
   } catch (error) {
@@ -545,46 +1049,129 @@ export async function sharePrescription(
   prescriptionId: string,
   userIds: string[]
 ): Promise<void> {
-  const firestore = getFirestore();
-  if (!firestore) {
-    throw new Error("Firestore not initialized");
-  }
-
   try {
-    const prescriptionDoc = await firestore()
-      .collection("prescriptions")
-      .doc(prescriptionId)
-      .get();
+    await initializeFirebase();
+    const firestore = getFirestore();
 
-    if (!prescriptionDoc.exists) {
+    if (firestore) {
+      try {
+        const prescriptionDoc = await firestore()
+          .collection("prescriptions")
+          .doc(prescriptionId)
+          .get();
+
+        if (!prescriptionDoc.exists) {
+          throw new Error("Prescription not found");
+        }
+
+        const prescription = prescriptionDoc.data() as SharedPrescription;
+        const newSharedWith = [...new Set([...prescription.sharedWith, ...userIds])];
+
+        await firestore().collection("prescriptions").doc(prescriptionId).update({
+          sharedWith: newSharedWith,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Send notifications to newly shared users
+        for (const userId of userIds) {
+          if (!prescription.sharedWith.includes(userId)) {
+            await firestore().collection("notifications").add({
+              userId,
+              type: "prescription_shared",
+              title: "Prescription Shared",
+              message:
+                prescription.createdByRole === "doctor"
+                  ? `Dr. ${prescription.doctorName} shared a prescription with you`
+                  : `${prescription.patientName} shared a prescription with you`,
+              data: {
+                prescriptionId,
+                fromUserId: prescription.createdBy,
+              },
+              read: false,
+              createdAt: firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        }
+        return;
+      } catch (nativeError) {
+        console.log("Native Firestore sharePrescription failed, falling back to REST API:", nativeError);
+      }
+    }
+
+    // REST API fallback
+    const projectId = ENV.FIREBASE_PROJECT_ID;
+    if (!projectId) throw new Error("Firebase project ID not configured");
+
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error("Not authenticated");
+
+    // Get the prescription first
+    const getUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
+    const getResponse = await fetch(getUrl, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+
+    if (!getResponse.ok) {
       throw new Error("Prescription not found");
     }
 
-    const prescription = prescriptionDoc.data() as SharedPrescription;
+    const prescriptionDoc = await getResponse.json();
+    const prescription = parsePrescriptionFromREST(prescriptionDoc);
     const newSharedWith = [...new Set([...prescription.sharedWith, ...userIds])];
 
-    await firestore().collection("prescriptions").doc(prescriptionId).update({
-      sharedWith: newSharedWith,
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+    // Update sharedWith
+    const patchResponse = await fetch(getUrl, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        fields: {
+          sharedWith: { arrayValue: { values: newSharedWith.map((s) => ({ stringValue: s })) } },
+          updatedAt: { timestampValue: new Date().toISOString() },
+        },
+      }),
     });
 
-    // Send notifications to newly shared users
+    if (!patchResponse.ok) {
+      throw new Error("Failed to update share list via REST API");
+    }
+
+    // Send notifications
+    const notifUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/notifications`;
     for (const userId of userIds) {
       if (!prescription.sharedWith.includes(userId)) {
-        await firestore().collection("notifications").add({
-          userId,
-          type: "prescription_shared",
-          title: "Prescription Shared",
-          message:
-            prescription.createdByRole === "doctor"
-              ? `Dr. ${prescription.doctorName} shared a prescription with you`
-              : `${prescription.patientName} shared a prescription with you`,
-          data: {
-            prescriptionId,
-            fromUserId: prescription.createdBy,
+        await fetch(notifUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
           },
-          read: false,
-          createdAt: firestore.FieldValue.serverTimestamp(),
+          body: JSON.stringify({
+            fields: {
+              userId: { stringValue: userId },
+              type: { stringValue: "prescription_shared" },
+              title: { stringValue: "Prescription Shared" },
+              message: {
+                stringValue:
+                  prescription.createdByRole === "doctor"
+                    ? `Dr. ${prescription.doctorName} shared a prescription with you`
+                    : `${prescription.patientName} shared a prescription with you`,
+              },
+              data: {
+                mapValue: {
+                  fields: {
+                    prescriptionId: { stringValue: prescriptionId },
+                    fromUserId: { stringValue: prescription.createdBy },
+                  },
+                },
+              },
+              read: { booleanValue: false },
+              createdAt: { timestampValue: new Date().toISOString() },
+            },
+          }),
         });
       }
     }

@@ -21,7 +21,16 @@ import {
   createAppointment,
   getPatientAppointments,
 } from "../../../utils/appointments";
-import { getFirestore, initializeFirebase } from "../../../utils/firebase";
+import {
+  getPatientConnections,
+  searchDoctorsByEmail,
+  checkExistingPatientConnection,
+  createPatientConnection,
+  createPatientInvitation,
+  createNotification,
+  getUserById,
+  PatientConnection,
+} from "../../../utils/connections";
 import {
   deletePrescription as deleteSharedPrescription,
   getPendingPrescriptions,
@@ -83,26 +92,22 @@ function MyDoctorScreen() {
   const loadConnections = async () => {
     if (!user) return [];
     try {
-      await initializeFirebase();
-      const firestore = getFirestore();
-      if (!firestore) return [];
-
-      const snapshot = await firestore()
-        .collection("connections")
-        .where("patientId", "==", user.uid)
-        .get();
-
+      const patientConns = await getPatientConnections(user.uid);
       const connectionsData: DoctorConnection[] = [];
-      for (const docSnap of snapshot.docs) {
-        const connectionData = { id: docSnap.id, ...docSnap.data() } as DoctorConnection;
-        if (connectionData.doctorId) {
-          const doctorDoc = await firestore().collection("users").doc(connectionData.doctorId).get();
-          if (doctorDoc.exists) {
-            connectionData.doctorProfile = doctorDoc.data() as UserProfile;
-          }
-        }
-        connectionsData.push(connectionData);
+
+      for (const conn of patientConns) {
+        const doctorProfile = await getUserById(conn.doctorId);
+        connectionsData.push({
+          id: conn.id,
+          doctorId: conn.doctorId,
+          patientId: conn.patientId,
+          status: conn.status,
+          initiatedBy: conn.initiatedBy,
+          createdAt: conn.createdAt,
+          doctorProfile: doctorProfile || undefined,
+        });
       }
+
       setConnections(connectionsData);
       return connectionsData;
     } catch (error) {
@@ -116,8 +121,9 @@ function MyDoctorScreen() {
     try {
       const appointments = await getPatientAppointments(user.uid);
       setMyAppointments(appointments);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading appointments:", error);
+      setMyAppointments([]);
     }
   };
 
@@ -140,21 +146,15 @@ function MyDoctorScreen() {
       Alert.alert("Error", "Please enter a doctor's email");
       return;
     }
-    await initializeFirebase();
-    const firestore = getFirestore();
-    if (!firestore) {
-      Alert.alert("Error", "Database not initialized");
+    if (!user) {
+      Alert.alert("Error", "You must be logged in");
       return;
     }
     try {
       setIsSearching(true);
-      const doctorSnapshot = await firestore()
-        .collection("users")
-        .where("email", "==", searchEmail.toLowerCase().trim())
-        .where("role", "==", "doctor")
-        .get();
+      const doctors = await searchDoctorsByEmail(searchEmail);
 
-      if (doctorSnapshot.empty) {
+      if (doctors.length === 0) {
         Alert.alert(
           "Doctor Not Found",
           "This doctor is not registered in the system. Would you like to send an invitation?",
@@ -166,40 +166,27 @@ function MyDoctorScreen() {
         return;
       }
 
-      const doctorData = doctorSnapshot.docs[0];
-      const doctorId = doctorData.id;
+      const doctor = doctors[0];
+      const hasExisting = await checkExistingPatientConnection(doctor.id, user.uid);
 
-      const existingSnapshot = await firestore()
-        .collection("connections")
-        .where("doctorId", "==", doctorId)
-        .where("patientId", "==", user?.uid)
-        .get();
-
-      if (!existingSnapshot.empty) {
+      if (hasExisting) {
         Alert.alert("Info", "You already have a connection with this doctor");
         return;
       }
 
-      await firestore().collection("connections").add({
-        doctorId,
-        patientId: user?.uid,
-        status: "pending",
-        initiatedBy: "patient",
-        createdAt: firestore.FieldValue.serverTimestamp(),
-      });
+      const connectionId = await createPatientConnection(doctor.id, user.uid);
 
-      await firestore().collection("notifications").add({
-        userId: doctorId,
+      await createNotification({
+        userId: doctor.id,
         type: "connection_request",
         title: "New Patient Connection Request",
-        message: `${user?.displayName || "A patient"} wants to connect with you`,
-        data: { fromUserId: user?.uid },
-        read: false,
-        createdAt: firestore.FieldValue.serverTimestamp(),
+        message: `${user.displayName || user.email || "A patient"} wants to connect with you`,
+        data: { fromUserId: user.uid },
       });
 
       Alert.alert("Success", "Connection request sent to doctor");
       setSearchEmail("");
+      loadConnections();
     } catch (error: any) {
       console.error("Error searching doctor:", error);
       Alert.alert("Error", error.message || "Failed to send connection request");
@@ -209,22 +196,17 @@ function MyDoctorScreen() {
   };
 
   const handleInviteDoctor = async (email: string) => {
-    await initializeFirebase();
-    const firestore = getFirestore();
-    if (!firestore) {
-      Alert.alert("Error", "Database not initialized");
+    if (!user) {
+      Alert.alert("Error", "You must be logged in");
       return;
     }
     try {
       setIsInviting(true);
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await firestore().collection("invitations").add({
-        invitedBy: user?.uid,
-        doctorEmail: email.toLowerCase().trim(),
-        status: "pending",
-        createdAt: firestore.FieldValue.serverTimestamp(),
-        expiresAt: firestore.Timestamp.fromDate(expiresAt),
-      });
+      await createPatientInvitation(
+        user.uid,
+        user.email || "",
+        email
+      );
       Alert.alert("Invitation Sent", `An invitation email will be sent to ${email}`);
       setSearchEmail("");
     } catch (error: any) {
@@ -288,7 +270,7 @@ function MyDoctorScreen() {
   const pendingConnections = connections.filter((c) => c.status === "pending");
   const upcomingAppointments = myAppointments
     .filter((a) => a.status !== "cancelled")
-    .sort((a, b) => new Date(a.date + "T" + a.time).getTime() - new Date(b.date + "T" + a.time).getTime())
+    .sort((a, b) => new Date(a.date + "T" + a.time).getTime() - new Date(b.date + "T" + b.time).getTime())
     .slice(0, 3);
 
   if (isLoading) {
