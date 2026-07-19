@@ -501,7 +501,9 @@ export async function updatePrescription(
     const idToken = await getIdToken();
     if (!idToken) throw new Error("Not authenticated");
 
-    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
+    const patchFieldNames = Object.keys({ ...buildRestPatchFields(updates), updatedAt: true });
+    const updateMask = patchFieldNames.map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join("&");
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}?${updateMask}`;
     const patchFields = {
       fields: {
         ...buildRestPatchFields(updates),
@@ -777,8 +779,8 @@ export async function approvePrescription(
     const prescription = parsePrescriptionFromREST(prescriptionDoc);
 
     // Update prescription status via REST PATCH
-    const patchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
-    const patchResponse = await fetch(patchUrl, {
+    const approvePatchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}?updateMask.fieldPaths=status&updateMask.fieldPaths=approvedAt&updateMask.fieldPaths=updatedAt`;
+    const patchResponse = await fetch(approvePatchUrl, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -916,8 +918,8 @@ export async function rejectPrescription(
     const prescription = parsePrescriptionFromREST(prescriptionDoc);
 
     // Update prescription status via REST PATCH
-    const patchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}`;
-    const patchResponse = await fetch(patchUrl, {
+    const rejectPatchUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prescriptions/${prescriptionId}?updateMask.fieldPaths=status&updateMask.fieldPaths=rejectedAt&updateMask.fieldPaths=rejectionReason&updateMask.fieldPaths=updatedAt`;
+    const patchResponse = await fetch(rejectPatchUrl, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -1121,7 +1123,8 @@ export async function sharePrescription(
     const newSharedWith = [...new Set([...prescription.sharedWith, ...userIds])];
 
     // Update sharedWith
-    const patchResponse = await fetch(getUrl, {
+    const sharePatchUrl = `${getUrl}?updateMask.fieldPaths=sharedWith&updateMask.fieldPaths=updatedAt`;
+    const patchResponse = await fetch(sharePatchUrl, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
