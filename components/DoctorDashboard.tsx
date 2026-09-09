@@ -281,7 +281,7 @@ export default function DoctorDashboard() {
 const createStyles = (theme: any) =>
   StyleSheet.create({
     center: { flex: 1, justifyContent: "center", alignItems: "center" },
-    scroll: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: 120 },
+    scroll: { paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: 120 },
     header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: spacing.xl },
     greeting: { ...typography.body, color: theme.colors.textSecondary },
     name: { ...typography.title, color: theme.colors.text, marginTop: 2 },

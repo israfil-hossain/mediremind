@@ -133,7 +133,7 @@ export default function CalendarScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.title, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
     monthHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },

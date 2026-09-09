@@ -7,7 +7,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { GlassButton, GlassCard, GlassField, GlassIconButton, ScreenBackground } from "../../../components/ui/Glass";
 import { accents, radius as R, spacing, typography, withAlpha } from "../../../constants/design";
 import { useTheme } from "../../../contexts/ThemeContext";
-import { Prescription, PrescriptionMedication, addPrescription, getUserProfile } from "../../../utils/storage";
+import { addPrescription, getUserProfile, Prescription, PrescriptionMedication } from "../../../utils/storage";
 
 export default function AddPrescriptionScreen() {
   const router = useRouter();
@@ -288,7 +288,7 @@ export default function AddPrescriptionScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.h1, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
     block: { marginBottom: spacing.md },

@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 import { GlassCard, GlassIconButton, GlassSurface, ScreenBackground } from "../../components/ui/Glass";
-import { accents, radius as R, spacing, typography, withAlpha } from "../../constants/design";
+import { radius as R, accents, spacing, typography, withAlpha } from "../../constants/design";
 import { useTheme } from "../../contexts/ThemeContext";
 import { SharedPrescription, getUserPrescriptions } from "../../utils/prescriptionManager";
 import { UserProfile, getUserProfile } from "../../utils/userManagement";
@@ -139,7 +139,7 @@ const createStyles = (theme: any) =>
   StyleSheet.create({
     center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md },
     emptyTitle: { ...typography.h2, color: theme.colors.text },
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.h1, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
     block: { marginBottom: spacing.md },

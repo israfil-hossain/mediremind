@@ -168,7 +168,7 @@ export default function DoctorAppointmentsScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.h1, color: theme.colors.text },
     filters: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
     filterPill: { paddingHorizontal: spacing.lg, paddingVertical: 8, borderRadius: R.pill, backgroundColor: withAlpha(theme.colors.text, 0.06) },

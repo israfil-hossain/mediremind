@@ -46,60 +46,60 @@ export interface Theme {
 }
 
 const lightTheme: Theme["colors"] = {
-  primary: "#1a8e2d",
-  primaryDark: "#146922",
-  primaryLight: "#4CAF50",
+  primary: "#10B981",
+  primaryDark: "#059669",
+  primaryLight: "#34D399",
 
-  background: "#f8f9fa",
-  surface: "#ffffff",
-  card: "#ffffff",
+  background: "#F6F7F9",
+  surface: "#FFFFFF",
+  card: "#FFFFFF",
 
-  text: "#333333",
-  textSecondary: "#666666",
-  textTertiary: "#999999",
+  text: "#0F172A",
+  textSecondary: "#64748B",
+  textTertiary: "#94A3B8",
 
-  border: "#e0e0e0",
-  borderLight: "#f0f0f0",
+  border: "#E7EAEE",
+  borderLight: "#F1F3F5",
 
-  success: "#4CAF50",
-  warning: "#FF9800",
-  error: "#F44336",
-  info: "#2196F3",
+  success: "#10B981",
+  warning: "#F59E0B",
+  error: "#F43F5E",
+  info: "#0EA5E9",
 
-  shadow: "#000000",
-  overlay: "rgba(0, 0, 0, 0.6)",
-  tabBar: "#ffffff",
-  tabBarInactive: "#999999",
+  shadow: "#0F172A",
+  overlay: "rgba(15, 23, 42, 0.5)",
+  tabBar: "#FFFFFF",
+  tabBarInactive: "#94A3B8",
 
-  white: "#ffffff",
+  white: "#FFFFFF",
   black: "#000000",
 };
 
 const darkTheme: Theme["colors"] = {
-  primary: "#4CAF50",
-  primaryDark: "#388E3C",
-  primaryLight: "#66BB6A",
+  primary: "#34D399",
+  primaryDark: "#10B981",
+  primaryLight: "#6EE7B7",
 
-  background: "#121212",
-  surface: "#1E1E1E",
-  card: "#2C2C2C",
+  background: "#0B0F14",
+  surface: "#141A21",
+  card: "#161D25",
 
-  text: "#FFFFFF",
-  textSecondary: "#B3B3B3",
-  textTertiary: "#808080",
+  text: "#F1F5F9",
+  textSecondary: "#94A3B8",
+  textTertiary: "#64748B",
 
-  border: "#383838",
-  borderLight: "#2C2C2C",
+  border: "#232B35",
+  borderLight: "#1A222C",
 
-  success: "#66BB6A",
-  warning: "#FFA726",
-  error: "#EF5350",
-  info: "#42A5F5",
+  success: "#34D399",
+  warning: "#FBBF24",
+  error: "#FB7185",
+  info: "#38BDF8",
 
   shadow: "#000000",
-  overlay: "rgba(0, 0, 0, 0.8)",
-  tabBar: "#1E1E1E",
-  tabBarInactive: "#808080",
+  overlay: "rgba(0, 0, 0, 0.7)",
+  tabBar: "#141A21",
+  tabBarInactive: "#64748B",
 
   white: "#FFFFFF",
   black: "#000000",

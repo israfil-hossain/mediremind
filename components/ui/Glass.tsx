@@ -260,7 +260,7 @@ interface ScreenBackgroundProps {
 export function ScreenBackground({ children, style }: ScreenBackgroundProps) {
   const { theme } = useTheme();
   const c = theme.isDark ? blobs.dark : blobs.light;
-  const op = theme.isDark ? 0.45 : 0.34;
+  const op = theme.isDark ? 0.50 : 0.30;
   return (
     <View style={[{ flex: 1, backgroundColor: theme.colors.background }, style]}>
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>

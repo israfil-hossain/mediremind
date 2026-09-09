@@ -5,7 +5,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-nat
 import { GlassCard, GlassIconButton, GlassSurface, ScreenBackground } from "../../components/ui/Glass";
 import { accents, radius as R, spacing, typography, withAlpha } from "../../constants/design";
 import { useTheme } from "../../contexts/ThemeContext";
-import { UserProfile, getUserProfile } from "../../utils/userManagement";
+import { getUserProfile, UserProfile } from "../../utils/userManagement";
 
 export default function DoctorDetailScreen() {
   const router = useRouter();
@@ -107,7 +107,7 @@ const createStyles = (theme: any) =>
   StyleSheet.create({
     center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md },
     emptyTitle: { ...typography.h2, color: theme.colors.text },
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.h1, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
     profileCard: { alignItems: "center", marginBottom: spacing.lg },

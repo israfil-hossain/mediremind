@@ -3,10 +3,10 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { GlassButton, GlassCard, GlassField, GlassIconButton, ScreenBackground } from "../../../components/ui/Glass";
-import { accents, radius as R, spacing, typography, withAlpha } from "../../../constants/design";
+import { accents, radius as R, spacing, typography } from "../../../constants/design";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useTheme } from "../../../contexts/ThemeContext";
-import { ConnectedUserProfile, PrescriptionMedication, createPrescription, getConnectedDoctors, getConnectedPatients } from "../../../utils/prescriptionManager";
+import { ConnectedUserProfile, createPrescription, getConnectedDoctors, getConnectedPatients, PrescriptionMedication } from "../../../utils/prescriptionManager";
 
 export default function CreatePrescriptionScreen() {
   const { theme } = useTheme();
@@ -221,7 +221,7 @@ export default function CreatePrescriptionScreen() {
 const createStyles = (theme: any) =>
   StyleSheet.create({
     center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md },
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.h1, color: theme.colors.text },
     muted: { ...typography.caption, color: theme.colors.textSecondary },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },

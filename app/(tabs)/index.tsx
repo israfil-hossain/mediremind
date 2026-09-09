@@ -28,10 +28,10 @@ import { getMedicationLimit, isPremium } from "../../utils/subscription";
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const QUICK_ACTIONS = [
-  { icon: "add" as const, label: "Add", route: "/medications/add" as const, color: accents.emerald },
-  { icon: "document-text-outline" as const, label: "Prescriptions", route: "/(tabs)/prescriptions" as const, color: accents.violet },
-  { icon: "calendar-outline" as const, label: "Calendar", route: "/(tabs)/calendar" as const, color: accents.sky },
-  { icon: "time-outline" as const, label: "History", route: "/history/view" as const, color: accents.rose },
+  { icon: "add" as const, label: "Add", route: "/medications/add" as const },
+  { icon: "document-text-outline" as const, label: "Prescriptions", route: "/(tabs)/prescriptions" as const },
+  { icon: "calendar-outline" as const, label: "Calendar", route: "/(tabs)/calendar" as const },
+  { icon: "time-outline" as const, label: "History", route: "/history/view" as const },
 ];
 
 function greeting() {
@@ -198,7 +198,6 @@ function PatientHomeScreen() {
         </View>
 
         <GlassCard style={styles.progressCard} padding={spacing.xxl}>
-          <Text style={styles.progressTitle}>Today's progress</Text>
           <ProgressRing progress={progress} completed={completedDoses} total={totalDoses} />
         </GlassCard>
 
@@ -207,8 +206,8 @@ function PatientHomeScreen() {
             <Link href={action.route} key={action.label} asChild>
               <Pressable style={styles.actionItem}>
                 <GlassCard padding={spacing.md} radius={R.lg} style={styles.actionCard}>
-                  <View style={[styles.actionIcon, { backgroundColor: withAlpha(action.color, 0.16) }]}>
-                    <Ionicons name={action.icon} size={22} color={action.color} />
+                  <View style={styles.actionIcon}>
+                    <Ionicons name={action.icon} size={22} color={accents.emerald} />
                   </View>
                   <Text style={styles.actionLabel} numberOfLines={1}>
                     {action.label}
@@ -222,8 +221,8 @@ function PatientHomeScreen() {
         {showUpgradePrompt && (
           <GlassCard style={styles.upgradeCard}>
             <View style={styles.upgradeRow}>
-              <View style={[styles.actionIcon, { backgroundColor: withAlpha(accents.amber, 0.16) }]}>
-                <Ionicons name="star" size={20} color={accents.amber} />
+              <View style={styles.actionIcon}>
+                <Ionicons name="star" size={20} color={accents.emerald} />
               </View>
               <View style={{ flex: 1, marginLeft: spacing.md }}>
                 <Text style={styles.upgradeTitle}>Unlock unlimited medications</Text>
@@ -266,8 +265,8 @@ function PatientHomeScreen() {
             return (
               <GlassCard key={medication.id} style={styles.doseCard} padding={spacing.lg}>
                 <View style={styles.doseRow}>
-                  <View style={[styles.doseIcon, { backgroundColor: withAlpha(medication.color, 0.16) }]}>
-                    <Ionicons name="medical" size={22} color={medication.color} />
+                  <View style={styles.doseIcon}>
+                    <Ionicons name="medical" size={22} color={accents.emerald} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.medName}>{medication.name}</Text>
@@ -284,7 +283,7 @@ function PatientHomeScreen() {
                       <Text style={styles.takenText}>Taken</Text>
                     </View>
                   ) : (
-                    <Pressable style={[styles.takeBtn, { backgroundColor: medication.color }]} onPress={() => handleTakeDose(medication)}>
+                    <Pressable style={styles.takeBtn} onPress={() => handleTakeDose(medication)}>
                       <Text style={styles.takeText}>Take</Text>
                     </Pressable>
                   )}
@@ -315,8 +314,8 @@ function PatientHomeScreen() {
           ) : (
             todaysMedications.map((medication) => (
               <View key={medication.id} style={styles.notifItem}>
-                <View style={[styles.doseIcon, { backgroundColor: withAlpha(medication.color, 0.16) }]}>
-                  <Ionicons name="medical" size={20} color={medication.color} />
+                <View style={styles.doseIcon}>
+                  <Ionicons name="medical" size={20} color={accents.emerald} />
                 </View>
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.medName}>{medication.name}</Text>
@@ -341,24 +340,23 @@ function PatientHomeScreen() {
 const createStyles = (theme: any) =>
   StyleSheet.create({
     loading: { flex: 1, justifyContent: "center", alignItems: "center" },
-    scroll: { paddingHorizontal: spacing.xl, paddingTop: 64, paddingBottom: 120 },
+    scroll: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
     header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xl },
     greeting: { ...typography.title, color: theme.colors.text },
     date: { ...typography.body, color: theme.colors.textSecondary, marginTop: 2 },
     headerActions: { flexDirection: "row" },
     progressCard: { alignItems: "center", marginBottom: spacing.lg },
-    progressTitle: { ...typography.label, color: theme.colors.textSecondary, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.lg },
-    actionsRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.xl },
+    actionsRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.xl, paddingBottom: spacing.sm },
     actionItem: { flex: 1 },
     actionCard: { alignItems: "center", gap: spacing.sm },
-    actionIcon: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+    actionIcon: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: withAlpha(accents.emerald, 0.1) },
     actionLabel: { ...typography.caption, color: theme.colors.text },
     upgradeCard: { marginBottom: spacing.xl },
     upgradeRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: spacing.md },
     upgradeTitle: { ...typography.h2, color: theme.colors.text },
     upgradeText: { ...typography.caption, color: theme.colors.textSecondary, marginTop: 2, lineHeight: 18 },
-    upgradeBtn: { backgroundColor: accents.amber, paddingVertical: 12, borderRadius: R.pill, alignItems: "center" },
-    upgradeBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    upgradeBtn: { backgroundColor: withAlpha(accents.emerald, 0.12), paddingVertical: 12, borderRadius: R.pill, alignItems: "center" },
+    upgradeBtnText: { color: theme.colors.primary, fontWeight: "700", fontSize: 14 },
     sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
     sectionTitle: { ...typography.h1, color: theme.colors.text },
     seeAll: { color: theme.colors.primary, fontWeight: "600" },
@@ -368,7 +366,7 @@ const createStyles = (theme: any) =>
     emptyBtnText: { color: "#fff", fontWeight: "700" },
     doseCard: { marginBottom: spacing.md },
     doseRow: { flexDirection: "row", alignItems: "center" },
-    doseIcon: { width: 44, height: 44, borderRadius: 16, alignItems: "center", justifyContent: "center", marginRight: spacing.md },
+    doseIcon: { width: 44, height: 44, borderRadius: 16, alignItems: "center", justifyContent: "center", marginRight: spacing.md, backgroundColor: withAlpha(accents.emerald, 0.1) },
     medName: { ...typography.h2, color: theme.colors.text },
     doseMeta: { flexDirection: "row", alignItems: "center", marginTop: 3, gap: 6 },
     doseDosage: { ...typography.caption, color: theme.colors.textSecondary },
@@ -376,7 +374,7 @@ const createStyles = (theme: any) =>
     doseTime: { ...typography.caption, color: theme.colors.textSecondary },
     takenBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: R.pill, backgroundColor: withAlpha(theme.colors.success, 0.14) },
     takenText: { color: theme.colors.success, fontWeight: "600", fontSize: 13 },
-    takeBtn: { paddingHorizontal: spacing.xl, paddingVertical: 10, borderRadius: R.pill },
+    takeBtn: { paddingHorizontal: spacing.xl, paddingVertical: 10, borderRadius: R.pill, backgroundColor: accents.emerald },
     takeText: { color: "#fff", fontWeight: "700", fontSize: 14 },
     notifItem: { flexDirection: "row", alignItems: "center" },
   });

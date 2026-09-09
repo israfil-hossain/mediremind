@@ -6,7 +6,7 @@ import { GlassButton, GlassCard, GlassField, GlassIconButton, ScreenBackground }
 import { accents, radius as R, spacing, typography, withAlpha } from "../../../constants/design";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useTheme } from "../../../contexts/ThemeContext";
-import { SharedPrescription, approvePrescription, getPendingPrescriptions, rejectPrescription } from "../../../utils/prescriptionManager";
+import { approvePrescription, getPendingPrescriptions, rejectPrescription, SharedPrescription } from "../../../utils/prescriptionManager";
 
 export default function PendingPrescriptionsScreen() {
   const { theme } = useTheme();
@@ -185,7 +185,7 @@ export default function PendingPrescriptionsScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.h1, color: theme.colors.text },
     center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.sm, padding: spacing.xl },
     emptyTitle: { ...typography.h1, color: theme.colors.text, marginTop: spacing.sm },

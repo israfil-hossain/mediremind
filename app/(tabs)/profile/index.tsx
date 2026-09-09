@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.h1, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
     block: { marginBottom: spacing.lg },
@@ -560,7 +560,7 @@ const createStyles = (theme: any) =>
     planText: { fontSize: 14, fontWeight: "700" },
     subDetail: { ...typography.caption, color: theme.colors.textSecondary },
     footer: { textAlign: "center", ...typography.caption, color: theme.colors.textTertiary, paddingVertical: spacing.xxl },
-    modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     saveLink: { ...typography.h2, color: theme.colors.primary },
     fieldLabel: { ...typography.label, color: theme.colors.text, marginBottom: spacing.sm },
     note: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.lg, borderRadius: R.md, backgroundColor: withAlpha(theme.colors.primary, 0.08) },

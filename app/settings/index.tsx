@@ -157,7 +157,7 @@ export default function SettingsScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.h1, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
     sectionTitle: { ...typography.caption, fontWeight: "700", letterSpacing: 0.6, color: theme.colors.textTertiary, marginBottom: spacing.sm, marginLeft: spacing.xs },

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AdBanner from "../../../components/AdBanner";
 import MyPatientsScreen from "../../../components/MyPatientsScreen";
-import { GlassCard, GlassIconButton, ScreenBackground } from "../../../components/ui/Glass";
+import { GlassCard, ScreenBackground } from "../../../components/ui/Glass";
 import { accents, radius as R, spacing, typography, withAlpha } from "../../../constants/design";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useTheme } from "../../../contexts/ThemeContext";
@@ -251,7 +251,7 @@ function PatientHistoryScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.title, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
     block: { marginBottom: spacing.lg },

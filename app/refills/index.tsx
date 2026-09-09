@@ -132,7 +132,7 @@ export default function RefillTrackerScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.title, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
     block: { marginBottom: spacing.lg },

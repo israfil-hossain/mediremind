@@ -158,7 +158,7 @@ export default function PremiumScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.title, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
     activeBadge: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: withAlpha(accents.emerald, 0.14), paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: R.pill, alignSelf: "flex-start", marginBottom: spacing.lg },

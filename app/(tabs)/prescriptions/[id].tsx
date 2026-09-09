@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Share, StyleS
 import { GlassCard, GlassIconButton, ScreenBackground } from "../../../components/ui/Glass";
 import { accents, radius as R, spacing, typography, withAlpha } from "../../../constants/design";
 import { useTheme } from "../../../contexts/ThemeContext";
-import { SharedPrescription, formatPrescriptionForWhatsApp, getPrescriptionById } from "../../../utils/prescriptionManager";
+import { formatPrescriptionForWhatsApp, getPrescriptionById, SharedPrescription } from "../../../utils/prescriptionManager";
 
 export default function PrescriptionDetailScreen() {
   const router = useRouter();
@@ -189,7 +189,7 @@ export default function PrescriptionDetailScreen() {
 const createStyles = (theme: any) =>
   StyleSheet.create({
     center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md },
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.h1, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
     block: { marginBottom: spacing.lg },

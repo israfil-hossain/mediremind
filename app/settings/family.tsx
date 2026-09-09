@@ -6,13 +6,13 @@ import { GlassButton, GlassCard, GlassField, GlassIconButton, ScreenBackground }
 import { accents, radius as R, spacing, typography, withAlpha } from "../../constants/design";
 import { useTheme } from "../../contexts/ThemeContext";
 import {
-  FamilyProfile,
-  addFamilyProfile,
-  deleteFamilyProfile,
-  getActiveProfileId,
-  getFamilyProfiles,
-  setActiveProfile,
-  updateFamilyProfile,
+    addFamilyProfile,
+    deleteFamilyProfile,
+    FamilyProfile,
+    getActiveProfileId,
+    getFamilyProfiles,
+    setActiveProfile,
+    updateFamilyProfile,
 } from "../../utils/familyProfiles";
 import { isFamilyCare } from "../../utils/subscription";
 
@@ -226,7 +226,7 @@ export default function FamilyProfilesScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.title, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
     block: { marginBottom: spacing.lg },

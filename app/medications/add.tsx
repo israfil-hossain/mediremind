@@ -3,15 +3,15 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    View,
 } from "react-native";
 import { GlassButton, GlassCard, GlassField, GlassIconButton, GlassSurface, ScreenBackground } from "../../components/ui/Glass";
 import { accents, radius as R, spacing, typography, withAlpha } from "../../constants/design";
@@ -356,7 +356,7 @@ const optCardBase = { padding: spacing.lg, alignItems: "center" as const, minHei
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.title, color: theme.colors.text },
     count: { ...typography.caption, color: theme.colors.textSecondary, marginTop: 2 },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },

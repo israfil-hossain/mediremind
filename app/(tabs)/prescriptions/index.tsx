@@ -16,7 +16,7 @@ import {
   getUserById,
   searchDoctorsByEmail,
 } from "../../../utils/connections";
-import { SharedPrescription, deletePrescription as deleteSharedPrescription, getPendingPrescriptions, getUserPrescriptions } from "../../../utils/prescriptionManager";
+import { deletePrescription as deleteSharedPrescription, getPendingPrescriptions, getUserPrescriptions, SharedPrescription } from "../../../utils/prescriptionManager";
 import { UserProfile } from "../../../utils/userManagement";
 
 interface DoctorConnection {
@@ -468,7 +468,7 @@ export default function PrescriptionsScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.title, color: theme.colors.text },
     center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md, paddingVertical: spacing.xxxl },
     muted: { ...typography.caption, color: theme.colors.textSecondary, textAlign: "center" },

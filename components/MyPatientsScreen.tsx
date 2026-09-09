@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { accents, radius as R, spacing, typography, withAlpha } from "../constants/design";
+import { radius as R, accents, spacing, typography, withAlpha } from "../constants/design";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import {
@@ -440,7 +440,7 @@ export default function MyPatientsScreen() {
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
-    header: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.md },
     title: { ...typography.title, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
     block: { marginBottom: spacing.lg },

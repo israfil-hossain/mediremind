@@ -1,22 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import PremiumButton from "../../../components/PremiumButton";
 import PremiumModal from "../../../components/PremiumModal";
 import { GlassCard, GlassIconButton, ScreenBackground } from "../../../components/ui/Glass";
-import { accents, radius as R, spacing, typography, withAlpha } from "../../../constants/design";
+import { accents, spacing, typography, withAlpha } from "../../../constants/design";
 import { Theme, useTheme } from "../../../contexts/ThemeContext";
 import {
   AdherenceStats,
-  MedicationAdherence,
-  TimeAnalysis,
-  WeeklyStats,
   calculateAdherenceStats,
   getInsights,
   getMedicationAdherenceStats,
   getTimeOfDayAnalysis,
   getWeeklyTrends,
+  MedicationAdherence,
+  TimeAnalysis,
+  WeeklyStats,
 } from "../../../utils/analytics";
 import { exportReport } from "../../../utils/exportReports";
 
@@ -198,7 +198,7 @@ const createStyles = (theme: Theme) =>
   StyleSheet.create({
     loading: { flex: 1, justifyContent: "center", alignItems: "center" },
     loadingText: { marginTop: spacing.lg, ...typography.body, color: theme.colors.textSecondary },
-    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 10, paddingBottom: spacing.sm },
     title: { ...typography.h1, color: theme.colors.text },
     scroll: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
     sectionTitle: { ...typography.h1, color: theme.colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
