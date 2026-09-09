@@ -1,8 +1,20 @@
 import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ENV } from "../config/env";
+
+// expo-notifications' remote-notification features were removed from Expo Go in
+// SDK 53, so importing it there throws. Lazily require it only outside Expo Go.
+const isExpoGo =
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+let Notifications: typeof import("expo-notifications") | null = null;
+if (!isExpoGo) {
+  try {
+    Notifications = require("expo-notifications");
+  } catch {
+    Notifications = null;
+  }
+}
 
 const PUSH_TOKEN_KEY = "@push_token";
 const LAST_TOKEN_KEY = "@last_push_token";

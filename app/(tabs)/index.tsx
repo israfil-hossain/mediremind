@@ -1,39 +1,38 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  Animated,
-  Alert,
-  AppState,
-  ActivityIndicator,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle } from "react-native-svg";
-import PremiumModal from "../../components/PremiumModal";
-import AdBanner from "../../components/AdBanner";
+import { Link, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  getMedications,
-  Medication,
-  getTodaysDoses,
-  recordDose,
-  DoseHistory,
-} from "../../utils/storage";
-import { useFocusEffect } from "@react-navigation/native";
+  ActivityIndicator,
+  Alert,
+  Animated,
+  AppState,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Svg, { Circle } from "react-native-svg";
+import AdBanner from "../../components/AdBanner";
+import DoctorDashboard from "../../components/DoctorDashboard";
+import PremiumModal from "../../components/PremiumModal";
+import { useAuth } from "../../contexts/AuthContext";
+import { useTheme } from "../../contexts/ThemeContext";
+import { getCurrentUser } from "../../utils/firebase";
 import {
   registerForPushNotificationsAsync,
   scheduleMedicationReminder,
 } from "../../utils/notifications";
+import {
+  DoseHistory,
+  getMedications,
+  getTodaysDoses,
+  Medication,
+  recordDose,
+} from "../../utils/storage";
 import { getMedicationLimit, isPremium } from "../../utils/subscription";
-import { getCurrentUser } from "../../utils/firebase";
-import { useTheme } from "../../contexts/ThemeContext";
-import { useAuth } from "../../contexts/AuthContext";
-import DoctorDashboard from "../../components/DoctorDashboard";
 
 const { width } = Dimensions.get("window");
 

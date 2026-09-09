@@ -1,24 +1,22 @@
-import React, { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  Alert,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import {
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import {
   getMedications,
   Medication,
   updateMedication,
 } from "../../utils/storage";
-import { scheduleRefillReminder } from "../../utils/notifications";
-import { canUseRefillAlerts, isPremium } from "../../utils/subscription";
+import { isPremium } from "../../utils/subscription";
 
 export default function RefillTrackerScreen() {
   const router = useRouter();
