@@ -1,15 +1,16 @@
 import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import { StripeAuthProvider } from "../providers/StripeProvider";
+import { StatusBar, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../contexts/AuthContext";
 import { ThemeProvider, useTheme } from "../contexts/ThemeContext";
+import { StripeAuthProvider } from "../providers/StripeProvider";
 
 function RootLayoutContent() {
   const { theme } = useTheme();
 
   return (
-    <>
-      <StatusBar style={theme.isDark ? "light" : "dark"} />
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <StatusBar backgroundColor={theme.colors.background} barStyle={theme.isDark ? "light-content" : "dark-content"} />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -71,18 +72,20 @@ function RootLayoutContent() {
             }}
           />
         </Stack>
-    </>
+    </View>
   );
 }
 
 export default function Layout() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <StripeAuthProvider>
-          <RootLayoutContent />
-        </StripeAuthProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <StripeAuthProvider>
+            <RootLayoutContent />
+          </StripeAuthProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

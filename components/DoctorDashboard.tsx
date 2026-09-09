@@ -1,32 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { radius as R, accents, spacing, typography, withAlpha } from "../constants/design";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { UserProfile, getUserProfile } from "../utils/userManagement";
-import {
-  getDoctorConnections,
-  getDoctorInvitations,
-  updateConnectionStatus,
-  createNotification,
-  PatientConnection,
-  PatientInvitation,
-} from "../utils/connections";
 import { getDoctorTodayAppointments } from "../utils/appointments";
-
-const { width } = Dimensions.get("window");
+import { PatientConnection, PatientInvitation, createNotification, getDoctorConnections, getDoctorInvitations, updateConnectionStatus } from "../utils/connections";
+import { UserProfile, getUserProfile } from "../utils/userManagement";
+import { GlassCard, GlassIconButton, GlassSurface, ScreenBackground } from "./ui/Glass";
 
 interface DashboardStats {
   totalPatients: number;
@@ -43,21 +25,15 @@ export default function DoctorDashboard() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
   const { theme } = useTheme();
-  const styles = getStyles(theme);
+  const styles = createStyles(theme);
   const [connections, setConnections] = useState<ConnectionWithProfile[]>([]);
   const [invitations, setInvitations] = useState<PatientInvitation[]>([]);
-  const [stats, setStats] = useState<DashboardStats>({
-    totalPatients: 0,
-    pendingRequests: 0,
-    pendingInvitations: 0,
-    todaysAppointments: 0,
-  });
+  const [stats, setStats] = useState<DashboardStats>({ totalPatients: 0, pendingRequests: 0, pendingInvitations: 0, todaysAppointments: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
-    loadDashboardData();
+    if (user) loadDashboardData();
   }, [user]);
 
   const loadDashboardData = async () => {
@@ -65,40 +41,24 @@ export default function DoctorDashboard() {
       setIsLoading(false);
       return;
     }
-
     try {
-      const [conns, invs, todayAppts] = await Promise.all([
-        getDoctorConnections(user.uid),
-        getDoctorInvitations(user.uid),
-        getDoctorTodayAppointments(user.uid),
-      ]);
-
-      // Load patient profiles for connections
-      const connectionsWithProfiles = await Promise.all(
+      const [conns, invs, todayAppts] = await Promise.all([getDoctorConnections(user.uid), getDoctorInvitations(user.uid), getDoctorTodayAppointments(user.uid)]);
+      const withProfiles = await Promise.all(
         conns.map(async (conn) => {
           if (conn.patientId) {
             const profile = await getUserProfile(conn.patientId);
-            if (profile) {
-              return { ...conn, patientProfile: profile };
-            }
+            if (profile) return { ...conn, patientProfile: profile };
           }
           return conn;
         })
       );
-
-      const accepted = connectionsWithProfiles.filter((c) => c.status === "accepted");
-      const pending = connectionsWithProfiles.filter((c) => c.status === "pending");
-
-      setConnections(connectionsWithProfiles);
+      const accepted = withProfiles.filter((c) => c.status === "accepted");
+      const pending = withProfiles.filter((c) => c.status === "pending");
+      setConnections(withProfiles);
       setInvitations(invs);
-      setStats({
-        totalPatients: accepted.length,
-        pendingRequests: pending.length,
-        pendingInvitations: invs.length,
-        todaysAppointments: todayAppts.length,
-      });
-    } catch (error) {
-      console.error("Error loading dashboard data:", error);
+      setStats({ totalPatients: accepted.length, pendingRequests: pending.length, pendingInvitations: invs.length, todaysAppointments: todayAppts.length });
+    } catch (e) {
+      console.error("Error loading dashboard data:", e);
     } finally {
       setIsLoading(false);
     }
@@ -107,7 +67,6 @@ export default function DoctorDashboard() {
   const handleAcceptRequest = async (connectionId: string, patientName: string) => {
     try {
       await updateConnectionStatus(connectionId, "accepted");
-
       const connection = connections.find((c) => c.id === connectionId);
       if (connection?.patientId) {
         await createNotification({
@@ -118,38 +77,32 @@ export default function DoctorDashboard() {
           data: { connectionId },
         });
       }
-
       Alert.alert("Success", `${patientName} has been added to your patients`);
       loadDashboardData();
-    } catch (error: any) {
-      console.error("Error accepting request:", error);
+    } catch (e) {
+      console.error("Error accepting request:", e);
       Alert.alert("Error", "Failed to accept connection request");
     }
   };
 
-  const handleRejectRequest = async (connectionId: string, patientName: string) => {
-    Alert.alert(
-      "Reject Request",
-      `Are you sure you want to reject ${patientName}'s connection request?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await updateConnectionStatus(connectionId, "rejected");
-              Alert.alert("Request Rejected", "The connection request has been rejected");
-              loadDashboardData();
-            } catch (error: any) {
-              console.error("Error rejecting request:", error);
-              Alert.alert("Error", "Failed to reject connection request");
-            }
-          },
+  const handleRejectRequest = (connectionId: string, patientName: string) =>
+    Alert.alert("Reject Request", `Are you sure you want to reject ${patientName}'s connection request?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reject",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await updateConnectionStatus(connectionId, "rejected");
+            Alert.alert("Request Rejected", "The connection request has been rejected");
+            loadDashboardData();
+          } catch (e) {
+            console.error("Error rejecting request:", e);
+            Alert.alert("Error", "Failed to reject connection request");
+          }
         },
-      ]
-    );
-  };
+      },
+    ]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -158,615 +111,205 @@ export default function DoctorDashboard() {
   };
 
   const pendingRequests = connections.filter((c) => c.status === "pending");
-  const recentPatients = connections
-    .filter((c) => c.status === "accepted")
-    .slice(0, 5);
+  const recentPatients = connections.filter((c) => c.status === "accepted").slice(0, 5);
+
+  const statCards = [
+    { icon: "people" as const, value: stats.totalPatients, label: "My Patients", color: accents.teal, route: "/(tabs)/history" as const },
+    { icon: "time-outline" as const, value: stats.pendingRequests, label: "Pending", color: accents.amber, route: "/(tabs)/history" as const },
+    { icon: "mail-outline" as const, value: stats.pendingInvitations, label: "Invitations", color: accents.sky, route: "/(tabs)/history" as const },
+    { icon: "document-text" as const, value: stats.todaysAppointments, label: "Appointments", color: accents.violet, route: "/(tabs)/prescriptions" as const },
+  ];
+
+  const quickActions = [
+    { icon: "person-add" as const, label: "Add Patient", color: accents.teal, route: "/(tabs)/history" as const },
+    { icon: "create" as const, label: "Prescription", color: accents.violet, route: "/(tabs)/prescriptions/create" as const },
+    { icon: "calendar" as const, label: "Appointments", color: accents.amber, route: "/appointments" as const },
+    { icon: "documents" as const, label: "My Scripts", color: accents.sky, route: "/(tabs)/prescriptions" as const },
+  ];
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0D9488" />
-      </View>
+      <ScreenBackground>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={accents.teal} />
+        </View>
+      </ScreenBackground>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      {/* Modern Header with Glassmorphism */}
-      <LinearGradient colors={["#0D9488", "#134E4A"]} style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <View style={styles.doctorInfo}>
-              <Text style={styles.greeting}>Welcome back,</Text>
-              <Text style={styles.doctorName}>Dr. {userProfile?.name || "Doctor"}</Text>
-              {userProfile?.doctorProfile?.specialty && (
-                <View style={styles.specialtyBadge}>
-                  <Ionicons name="medical" size={12} color="white" />
-                  <Text style={styles.specialty}>{userProfile.doctorProfile.specialty}</Text>
+    <ScreenBackground>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}>
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.greeting}>Welcome back,</Text>
+            <Text style={styles.name}>Dr. {userProfile?.name || "Doctor"}</Text>
+            {userProfile?.doctorProfile?.specialty && (
+              <View style={styles.specialtyBadge}>
+                <Ionicons name="medical" size={12} color={accents.teal} />
+                <Text style={styles.specialtyText}>{userProfile.doctorProfile.specialty}</Text>
+              </View>
+            )}
+          </View>
+          <Pressable onPress={() => router.push("/(tabs)/history")}>
+            <GlassIconButton icon="notifications-outline" onPress={() => router.push("/(tabs)/history")} />
+            {stats.pendingRequests + stats.pendingInvitations > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>{stats.pendingRequests + stats.pendingInvitations}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+
+        <View style={styles.statsGrid}>
+          {statCards.map((s) => (
+            <Pressable key={s.label} style={styles.statItem} onPress={() => router.push(s.route)}>
+              <GlassCard padding={spacing.lg} style={styles.statCard}>
+                <View style={[styles.statIcon, { backgroundColor: withAlpha(s.color, 0.16) }]}>
+                  <Ionicons name={s.icon} size={22} color={s.color} />
                 </View>
-              )}
-            </View>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => router.push("/(tabs)/history")}
-            >
-              <Ionicons name="notifications-outline" size={24} color="white" />
-              {stats.pendingRequests + stats.pendingInvitations > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>
-                    {stats.pendingRequests + stats.pendingInvitations}
-                  </Text>
+                <Text style={[styles.statNumber, { color: s.color }]}>{s.value}</Text>
+                <Text style={styles.statLabel}>{s.label}</Text>
+              </GlassCard>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.xl, paddingBottom: spacing.sm }}>
+          {quickActions.map((a) => (
+            <Pressable key={a.label} onPress={() => router.push(a.route)} style={{ marginRight: spacing.md }}>
+              <GlassCard padding={spacing.lg} style={styles.actionCard}>
+                <View style={[styles.actionIcon, { backgroundColor: withAlpha(a.color, 0.16) }]}>
+                  <Ionicons name={a.icon} size={24} color={a.color} />
                 </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </LinearGradient>
+                <Text style={styles.actionText}>{a.label}</Text>
+              </GlassCard>
+            </Pressable>
+          ))}
+        </ScrollView>
 
-      <View style={styles.content}>
-        {/* Modern Stats Cards */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statsRow}>
-            <TouchableOpacity
-              style={[styles.statCard, { backgroundColor: "#F0FDFA" }]}
-              onPress={() => router.push("/(tabs)/history")}
-            >
-              <View style={[styles.statIcon, { backgroundColor: "#CCFBF1" }]}>
-                <Ionicons name="people" size={24} color="#0D9488" />
-              </View>
-              <Text style={styles.statNumber}>{stats.totalPatients}</Text>
-              <Text style={styles.statLabel}>My Patients</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.statCard, { backgroundColor: "#FFFBEB" }]}
-              onPress={() => router.push("/(tabs)/history")}
-            >
-              <View style={[styles.statIcon, { backgroundColor: "#FEF3C7" }]}>
-                <Ionicons name="time-outline" size={24} color="#D97706" />
-              </View>
-              <Text style={[styles.statNumber, { color: "#D97706" }]}>
-                {stats.pendingRequests}
-              </Text>
-              <Text style={styles.statLabel}>Pending</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.statsRow}>
-            <TouchableOpacity
-              style={[styles.statCard, { backgroundColor: "#EFF6FF" }]}
-              onPress={() => router.push("/(tabs)/history")}
-            >
-              <View style={[styles.statIcon, { backgroundColor: "#DBEAFE" }]}>
-                <Ionicons name="mail-outline" size={24} color="#2563EB" />
-              </View>
-              <Text style={[styles.statNumber, { color: "#2563EB" }]}>
-                {stats.pendingInvitations}
-              </Text>
-              <Text style={styles.statLabel}>Invitations</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.statCard, { backgroundColor: "#F5F3FF" }]}
-              onPress={() => router.push("/(tabs)/prescriptions")}
-            >
-              <View style={[styles.statIcon, { backgroundColor: "#EDE9FE" }]}>
-                <Ionicons name="document-text" size={24} color="#7C3AED" />
-              </View>
-              <Text style={[styles.statNumber, { color: "#7C3AED" }]}>
-                {stats.todaysAppointments}
-              </Text>
-              <Text style={styles.statLabel}>Prescriptions</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Quick Actions - Modern Horizontal Scroll */}
-        <View style={[styles.section, styles.quickActionsSection]}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.quickActionsScroll}>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push("/(tabs)/history")}
-            >
-              <LinearGradient colors={["#0D9488", "#115E59"]} style={styles.actionGradient}>
-                <Ionicons name="person-add" size={28} color="white" />
-                <Text style={styles.actionText}>Add Patient</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push("/(tabs)/prescriptions/create")}
-            >
-              <LinearGradient colors={["#7C3AED", "#5B21B6"]} style={styles.actionGradient}>
-                <Ionicons name="create" size={28} color="white" />
-                <Text style={styles.actionText}>Prescription</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push("/appointments")}
-            >
-              <LinearGradient colors={["#F59E0B", "#D97706"]} style={styles.actionGradient}>
-                <Ionicons name="calendar" size={28} color="white" />
-                <Text style={styles.actionText}>Appts</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionCard}
-              onPress={() => router.push("/(tabs)/prescriptions")}
-            >
-              <LinearGradient colors={["#2563EB", "#1E40AF"]} style={styles.actionGradient}>
-                <Ionicons name="documents" size={28} color="white" />
-                <Text style={styles.actionText}>My Scripts</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-
-        {/* Pending Connection Requests */}
         {pendingRequests.length > 0 && (
-          <View style={styles.section}>
+          <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Pending Requests</Text>
-              <TouchableOpacity onPress={() => router.push("/(tabs)/history")}>
-                <Text style={styles.viewAllText}>View All</Text>
-              </TouchableOpacity>
+              <Pressable onPress={() => router.push("/(tabs)/history")}>
+                <Text style={styles.viewAll}>View All</Text>
+              </Pressable>
             </View>
             {pendingRequests.map((request) => (
-              <View key={request.id} style={styles.requestCard}>
-                <View style={styles.patientIcon}>
-                  <Text style={styles.patientInitial}>
-                    {(request.patientProfile?.name || "P")[0].toUpperCase()}
-                  </Text>
+              <GlassCard key={request.id} style={styles.rowCard} padding={spacing.lg}>
+                <GlassSurface radius={R.pill} style={styles.avatar}>
+                  <Text style={styles.avatarText}>{(request.patientProfile?.name || "P")[0].toUpperCase()}</Text>
+                </GlassSurface>
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={styles.rowTitle}>{request.patientProfile?.name || "Patient"}</Text>
+                  <Text style={styles.muted}>{request.patientProfile?.email}</Text>
                 </View>
-                <View style={styles.requestInfo}>
-                  <Text style={styles.patientName}>
-                    {request.patientProfile?.name || "Patient"}
-                  </Text>
-                  <Text style={styles.requestEmail}>
-                    {request.patientProfile?.email}
-                  </Text>
+                <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                  <Pressable style={[styles.circleBtn, { backgroundColor: accents.teal }]} onPress={() => handleAcceptRequest(request.id, request.patientProfile?.name || "Patient")}>
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                  </Pressable>
+                  <Pressable style={[styles.circleBtn, { backgroundColor: accents.rose }]} onPress={() => handleRejectRequest(request.id, request.patientProfile?.name || "Patient")}>
+                    <Ionicons name="close" size={20} color="#fff" />
+                  </Pressable>
                 </View>
-                <View style={styles.requestActions}>
-                  <TouchableOpacity
-                    style={styles.acceptButton}
-                    onPress={() =>
-                      handleAcceptRequest(
-                        request.id,
-                        request.patientProfile?.name || "Patient"
-                      )
-                    }
-                  >
-                    <Ionicons name="checkmark" size={20} color="white" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.rejectButton}
-                    onPress={() =>
-                      handleRejectRequest(
-                        request.id,
-                        request.patientProfile?.name || "Patient"
-                      )
-                    }
-                  >
-                    <Ionicons name="close" size={20} color="white" />
-                  </TouchableOpacity>
-                </View>
-              </View>
+              </GlassCard>
             ))}
-          </View>
+          </>
         )}
 
-        {/* Recent Patients */}
         {recentPatients.length > 0 && (
-          <View style={styles.section}>
+          <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent Patients</Text>
-              <TouchableOpacity onPress={() => router.push("/(tabs)/history")}>
-                <Text style={styles.viewAllText}>View All</Text>
-              </TouchableOpacity>
+              <Pressable onPress={() => router.push("/(tabs)/history")}>
+                <Text style={styles.viewAll}>View All</Text>
+              </Pressable>
             </View>
-            {recentPatients.map((connection) => (
-              <TouchableOpacity
-                key={connection.id}
-                style={styles.patientCard}
-                onPress={() => router.push(`/patient/${connection.patientId}`)}
-              >
-                <View style={styles.patientIcon}>
-                  <Text style={styles.patientInitial}>
-                    {(connection.patientProfile?.name || "P")[0].toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.patientCardInfo}>
-                  <Text style={styles.patientCardName}>
-                    {connection.patientProfile?.name || "Patient"}
-                  </Text>
-                  <Text style={styles.patientCardEmail}>
-                    {connection.patientProfile?.email}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={24} color="#999" />
-              </TouchableOpacity>
+            {recentPatients.map((c) => (
+              <Pressable key={c.id} onPress={() => router.push(`/patient/${c.patientId}`)}>
+                <GlassCard style={styles.rowCard} padding={spacing.lg}>
+                  <GlassSurface radius={R.pill} style={styles.avatar}>
+                    <Text style={styles.avatarText}>{(c.patientProfile?.name || "P")[0].toUpperCase()}</Text>
+                  </GlassSurface>
+                  <View style={{ flex: 1, marginLeft: spacing.md }}>
+                    <Text style={styles.rowTitle}>{c.patientProfile?.name || "Patient"}</Text>
+                    <Text style={styles.muted}>{c.patientProfile?.email}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={22} color={theme.colors.textTertiary} />
+                </GlassCard>
+              </Pressable>
             ))}
-          </View>
+          </>
         )}
 
-        {/* Invitations Sent */}
         {invitations.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Sent Invitations</Text>
-            </View>
+          <>
+            <Text style={styles.sectionTitle}>Sent Invitations</Text>
             {invitations.slice(0, 3).map((inv) => (
-              <View key={inv.id} style={styles.invitationCard}>
-                <View style={[styles.patientIcon, { backgroundColor: "#FFF7ED" }]}>
-                  <Ionicons name="mail" size={20} color="#F97316" />
+              <GlassCard key={inv.id} style={styles.rowCard} padding={spacing.lg}>
+                <View style={[styles.avatar, { backgroundColor: withAlpha(accents.amber, 0.16) }]}>
+                  <Ionicons name="mail" size={20} color={accents.amber} />
                 </View>
-                <View style={styles.patientCardInfo}>
-                  <Text style={styles.patientCardName}>{inv.patientEmail}</Text>
-                  <Text style={styles.invitationStatus}>Waiting to register</Text>
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={styles.rowTitle}>{inv.patientEmail}</Text>
+                  <Text style={[styles.muted, { color: accents.amber }]}>Waiting to register</Text>
                 </View>
-              </View>
+              </GlassCard>
             ))}
-          </View>
+          </>
         )}
 
-        {/* Empty State */}
         {connections.length === 0 && (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIconCircle}>
-              <Ionicons name="people-outline" size={48} color="#0D9488" />
+          <GlassCard style={styles.empty} padding={spacing.xxl}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="people-outline" size={44} color={accents.teal} />
             </View>
-            <Text style={styles.emptyText}>No patients yet</Text>
-            <Text style={styles.emptySubtext}>
-              Tap "Add Patient" to connect with your first patient
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyActionButton}
-              onPress={() => router.push("/(tabs)/history")}
-            >
-              <Text style={styles.emptyActionButtonText}>Add Patient</Text>
-            </TouchableOpacity>
-          </View>
+            <Text style={styles.emptyTitle}>No patients yet</Text>
+            <Text style={styles.muted}>Tap "Add Patient" to connect with your first patient</Text>
+            <Pressable style={styles.emptyBtn} onPress={() => router.push("/(tabs)/history")}>
+              <Text style={styles.emptyBtnText}>Add Patient</Text>
+            </Pressable>
+          </GlassCard>
         )}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </ScreenBackground>
   );
 }
 
-const getStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: theme.colors.background,
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 30,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-  },
-  headerContent: {
-    paddingHorizontal: 24,
-  },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  doctorInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: 15,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginBottom: 4,
-    fontWeight: "500",
-  },
-  doctorName: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "white",
-    marginBottom: 8,
-  },
-  specialtyBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: "flex-start",
-    gap: 6,
-  },
-  specialty: {
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.95)",
-    fontWeight: "500",
-  },
-  notificationButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    backgroundColor: "#EF4444",
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: "#0D9488",
-  },
-  notificationBadgeText: {
-    color: "white",
-    fontSize: 11,
-    fontWeight: "bold",
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-    paddingTop: 24,
-  },
-  statsContainer: {
-    marginBottom: 24,
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
-  },
-  statCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 20,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  statIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#0D9488",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    fontWeight: "500",
-  },
-  section: {
-    marginBottom: 28,
-  },
-  quickActionsSection: {
-    marginBottom: 36,
-    marginTop: 4,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: theme.colors.text,
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: "#0D9488",
-    fontWeight: "600",
-  },
-  quickActionsScroll: {
-    marginHorizontal: -4,
-  },
-  actionCard: {
-    width: 110,
-    height: 100,
-    borderRadius: 10,
-    overflow: "hidden",
-    marginRight: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  actionGradient: {
-    flex: 1,
-    padding: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actionText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  requestCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 20,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  patientIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: theme.colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  patientInitial: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#0D9488",
-  },
-  requestInfo: {
-    flex: 1,
-  },
-  patientName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  requestEmail: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  requestActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  acceptButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#0D9488",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#0D9488",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  rejectButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#EF4444",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#EF4444",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  patientCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 20,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  patientCardInfo: {
-    flex: 1,
-  },
-  patientCardName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  patientCardEmail: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  invitationCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 20,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  invitationStatus: {
-    fontSize: 12,
-    color: "#F97316",
-    fontWeight: "500",
-    marginTop: 2,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 50,
-  },
-  emptyIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginBottom: 6,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    textAlign: "center",
-    paddingHorizontal: 40,
-    marginBottom: 20,
-  },
-  emptyActionButton: {
-    backgroundColor: "#0D9488",
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 14,
-    shadowColor: "#0D9488",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  emptyActionButtonText: {
-    color: "white",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-});
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    center: { flex: 1, justifyContent: "center", alignItems: "center" },
+    scroll: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: 120 },
+    header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: spacing.xl },
+    greeting: { ...typography.body, color: theme.colors.textSecondary },
+    name: { ...typography.title, color: theme.colors.text, marginTop: 2 },
+    specialtyBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: withAlpha(accents.teal, 0.14), paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: R.pill, alignSelf: "flex-start", marginTop: spacing.sm },
+    specialtyText: { fontSize: 13, color: accents.teal, fontWeight: "600" },
+    notifBadge: { position: "absolute", top: -2, right: -2, backgroundColor: accents.rose, borderRadius: 10, minWidth: 20, height: 20, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+    notifBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+    statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.xl },
+    statItem: { width: "47.5%" },
+    statCard: { alignItems: "center" },
+    statIcon: { width: 46, height: 46, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
+    statNumber: { fontSize: 26, fontWeight: "800" },
+    statLabel: { ...typography.caption, color: theme.colors.textSecondary, marginTop: 2 },
+    sectionTitle: { ...typography.h1, color: theme.colors.text, marginBottom: spacing.md },
+    sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
+    viewAll: { ...typography.label, color: accents.teal },
+    actionCard: { alignItems: "center", width: 'auto', gap: spacing.sm },
+    actionIcon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+    actionText: { ...typography.caption, color: theme.colors.text, textAlign: "center" },
+    rowCard: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md },
+    avatar: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center" },
+    avatarText: { fontSize: 20, fontWeight: "800", color: accents.teal },
+    rowTitle: { ...typography.h2, color: theme.colors.text },
+    muted: { ...typography.caption, color: theme.colors.textSecondary, textAlign: "center" },
+    circleBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+    empty: { alignItems: "center", gap: spacing.sm },
+    emptyIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: withAlpha(accents.teal, 0.14), alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
+    emptyTitle: { ...typography.h1, color: theme.colors.text },
+    emptyBtn: { backgroundColor: accents.teal, paddingHorizontal: spacing.xxl, paddingVertical: 12, borderRadius: R.pill, marginTop: spacing.md },
+    emptyBtnText: { color: "#fff", fontWeight: "700" },
+  });

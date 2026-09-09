@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { Link, useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -7,133 +6,78 @@ import {
   Alert,
   Animated,
   AppState,
-  Dimensions,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import AdBanner from "../../components/AdBanner";
 import DoctorDashboard from "../../components/DoctorDashboard";
 import PremiumModal from "../../components/PremiumModal";
+import { GlassCard, GlassIconButton, ScreenBackground } from "../../components/ui/Glass";
+import { accents, radius as R, spacing, typography, withAlpha } from "../../constants/design";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { getCurrentUser } from "../../utils/firebase";
-import {
-  registerForPushNotificationsAsync,
-  scheduleMedicationReminder,
-} from "../../utils/notifications";
-import {
-  DoseHistory,
-  getMedications,
-  getTodaysDoses,
-  Medication,
-  recordDose,
-} from "../../utils/storage";
+import { registerForPushNotificationsAsync, scheduleMedicationReminder } from "../../utils/notifications";
+import { DoseHistory, getMedications, getTodaysDoses, Medication, recordDose } from "../../utils/storage";
 import { getMedicationLimit, isPremium } from "../../utils/subscription";
 
-const { width } = Dimensions.get("window");
-
-// Create animated circle component
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const QUICK_ACTIONS = [
-  {
-    icon: "add-circle-outline" as const,
-    label: "Add\nMedication",
-    route: "/medications/add" as const,
-    color: "#2E7D32",
-    gradient: ["#4CAF50", "#2E7D32"] as [string, string],
-  },
-  {
-    icon: "document-text-outline" as const,
-    label: "Prescription\nHistory",
-    route: "/(tabs)/prescriptions" as const,
-    color: "#5E35B1",
-    gradient: ["#7C4DFF", "#5E35B1"] as [string, string],
-  },
-  {
-    icon: "calendar-outline" as const,
-    label: "Calendar\nView",
-    route: "/(tabs)/calendar" as const,
-    color: "#1976D2",
-    gradient: ["#2196F3", "#1976D2"] as [string, string],
-  },
-  {
-    icon: "time-outline" as const,
-    label: "History\nLog",
-    route: "/history/view" as const,
-    color: "#C2185B",
-    gradient: ["#E91E63", "#C2185B"] as [string, string],
-  },
+  { icon: "add" as const, label: "Add", route: "/medications/add" as const, color: accents.emerald },
+  { icon: "document-text-outline" as const, label: "Prescriptions", route: "/(tabs)/prescriptions" as const, color: accents.violet },
+  { icon: "calendar-outline" as const, label: "Calendar", route: "/(tabs)/calendar" as const, color: accents.sky },
+  { icon: "time-outline" as const, label: "History", route: "/history/view" as const, color: accents.rose },
 ];
 
-interface CircularProgressProps {
-  progress: number;
-  totalDoses: number;
-  completedDoses: number;
-  styles: any;
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
 }
 
-function CircularProgress({
-  progress,
-  totalDoses,
-  completedDoses,
-  styles,
-}: CircularProgressProps) {
-  const animatedValue = useRef(new Animated.Value(0)).current;
-  const size = width * 0.55;
-  const strokeWidth = 15;
+function ProgressRing({ progress, completed, total }: { progress: number; completed: number; total: number }) {
+  const { theme } = useTheme();
+  const anim = useRef(new Animated.Value(0)).current;
+  const size = 172;
+  const strokeWidth = 14;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
   useEffect(() => {
-    Animated.timing(animatedValue, {
-      toValue: progress,
-      duration: 1500,
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(anim, { toValue: progress, duration: 1200, useNativeDriver: true }).start();
   }, [progress]);
 
-  const strokeDashoffset = animatedValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: [circumference, 0],
-  });
+  const offset = anim.interpolate({ inputRange: [0, 1], outputRange: [circumference, 0] });
 
   return (
-    <View style={styles.progressContainer}>
-      <View style={styles.progressTextContainer}>
-        <Text style={styles.progressPercentage}>
-          {Math.round(progress * 100)}%
-        </Text>
-        <Text style={styles.progressDetails}>
-          {completedDoses} of {totalDoses} doses
-        </Text>
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={StyleSheet.absoluteFill}>
+        <Svg width={size} height={size}>
+          <Circle cx={size / 2} cy={size / 2} r={radius} stroke={withAlpha(theme.colors.text, 0.08)} strokeWidth={strokeWidth} fill="none" />
+          <AnimatedCircle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={accents.emerald}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
       </View>
-      <Svg width={size} height={size} style={styles.progressRing}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="rgba(255, 255, 255, 0.2)"
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-        <AnimatedCircle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="white"
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </Svg>
+      <Text style={{ fontSize: 40, fontWeight: "800", color: theme.colors.text }}>{Math.round(progress * 100)}%</Text>
+      <Text style={{ fontSize: 13, color: theme.colors.textSecondary, marginTop: 2 }}>
+        {completed} of {total} doses
+      </Text>
     </View>
   );
 }
@@ -147,26 +91,16 @@ function PatientHomeScreen() {
   const [todaysMedications, setTodaysMedications] = useState<Medication[]>([]);
   const [completedDoses, setCompletedDoses] = useState(0);
   const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
-  const [isPremiumUser, setIsPremiumUser] = useState(false);
   const [medicationLimit, setMedicationLimit] = useState(5);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
-  // Check authentication on mount
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (!user) {
-          router.replace("/auth");
-          return;
-        }
-      } catch (error) {
-        router.replace("/auth");
-      } finally {
-        setIsCheckingAuth(false);
-      }
-    };
-    checkAuth();
+    getCurrentUser()
+      .then((user) => {
+        if (!user) router.replace("/auth");
+      })
+      .catch(() => router.replace("/auth"))
+      .finally(() => setIsCheckingAuth(false));
   }, []);
 
   const loadMedications = useCallback(async () => {
@@ -177,743 +111,278 @@ function PatientHomeScreen() {
         isPremium(),
         getMedicationLimit(),
       ]);
-
-      setIsPremiumUser(premium);
       setMedicationLimit(limit);
       setDoseHistory(todaysDoses);
       setMedications(allMedications);
+      setShowUpgradePrompt(allMedications.length >= 3 && !premium && limit !== Infinity);
 
-      // Show upgrade prompt if user has 3+ medications and is not premium
-      if (allMedications.length >= 3 && !premium && limit !== Infinity) {
-        setShowUpgradePrompt(true);
-      } else {
-        setShowUpgradePrompt(false);
-      }
-
-      // Filter medications for today
       const today = new Date();
       const todayMeds = allMedications.filter((med) => {
         const startDate = new Date(med.startDate);
         const durationDays = parseInt(med.duration.split(" ")[0]);
-
-        // For ongoing medications or if within duration
-        if (
+        return (
           durationDays === -1 ||
-          (today >= startDate &&
-            today <=
-              new Date(
-                startDate.getTime() + durationDays * 24 * 60 * 60 * 1000
-              ))
-        ) {
-          return true;
-        }
-        return false;
+          (today >= startDate && today <= new Date(startDate.getTime() + durationDays * 86400000))
+        );
       });
-
       setTodaysMedications(todayMeds);
-
-      // Calculate completed doses
-      const completed = todaysDoses.filter((dose) => dose.taken).length;
-      setCompletedDoses(completed);
-    } catch (error) {
-      // Error loading medications
-    }
+      setCompletedDoses(todaysDoses.filter((dose) => dose.taken).length);
+    } catch {}
   }, []);
 
   const setupNotifications = async () => {
     try {
       const token = await registerForPushNotificationsAsync();
-      if (!token) {
-        return;
+      if (!token) return;
+      const meds = await getMedications();
+      for (const medication of meds) {
+        if (medication.reminderEnabled) await scheduleMedicationReminder(medication);
       }
-
-      // Schedule reminders for all medications
-      const medications = await getMedications();
-      for (const medication of medications) {
-        if (medication.reminderEnabled) {
-          await scheduleMedicationReminder(medication);
-        }
-      }
-    } catch (error) {
-      // Error setting up notifications
-    }
+    } catch {}
   };
 
-  // Use useEffect for initial load
   useEffect(() => {
     loadMedications();
     setupNotifications();
-
-    // Handle app state changes for notifications
-    const subscription = AppState.addEventListener("change", (nextAppState) => {
-      if (nextAppState === "active") {
-        loadMedications();
-      }
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") loadMedications();
     });
-
-    return () => {
-      subscription.remove();
-    };
+    return () => subscription.remove();
   }, []);
 
-  // Use useFocusEffect to reload when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadMedications();
-      return () => {}; // No cleanup needed
-    }, []) // Empty dependency array to prevent infinite loop
+    }, [])
   );
 
   const handleTakeDose = async (medication: Medication) => {
     try {
       await recordDose(medication.id, true, new Date().toISOString());
-      await loadMedications(); // Reload data after recording dose
-    } catch (error) {
+      await loadMedications();
+    } catch {
       Alert.alert("Error", "Failed to record dose. Please try again.");
     }
   };
 
-  const isDoseTaken = (medicationId: string) => {
-    return doseHistory.some(
-      (dose) => dose.medicationId === medicationId && dose.taken
-    );
-  };
+  const isDoseTaken = (medicationId: string) => doseHistory.some((d) => d.medicationId === medicationId && d.taken);
 
-  const progress =
-    todaysMedications.length > 0
-      ? completedDoses / (todaysMedications.length * 2)
-      : 0;
-
+  const totalDoses = todaysMedications.length * 2;
+  const progress = totalDoses > 0 ? completedDoses / totalDoses : 0;
   const styles = createStyles(theme);
 
-  // Show loading while checking authentication
   if (isCheckingAuth) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      <ScreenBackground>
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </ScreenBackground>
     );
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <View style={styles.flex1}>
-              <Text style={styles.greeting}>Daily Progress</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => setShowNotifications(true)}
-            >
-              <Ionicons name="notifications-outline" size={24} color="white" />
-              {todaysMedications.length > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationCount}>
-                    {todaysMedications.length}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => router.push("/(tabs)/profile?edit=true")}
-            >
-              <Ionicons name="person-circle-outline" size={24} color="white" />
-            </TouchableOpacity>
+    <ScreenBackground>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>{greeting()}</Text>
+            <Text style={styles.date}>
+              {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+            </Text>
           </View>
-          <CircularProgress
-            progress={progress}
-            totalDoses={todaysMedications.length * 2}
-            completedDoses={completedDoses}
-            styles={styles}
-          />
+          <View style={styles.headerActions}>
+            <GlassIconButton icon="notifications-outline" onPress={() => setShowNotifications(true)} />
+            <GlassIconButton icon="person-outline" onPress={() => router.push("/(tabs)/profile?edit=true")} style={{ marginLeft: spacing.sm }} />
+          </View>
         </View>
-      </LinearGradient>
 
-      <View style={styles.content}>
-        <View style={styles.quickActionsContainer}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            {QUICK_ACTIONS.map((action) => (
-              <Link href={action.route} key={action.label} asChild>
-                <TouchableOpacity style={styles.actionButton}>
-                  <LinearGradient
-                    colors={action.gradient}
-                    style={styles.actionGradient}
-                  >
-                    <View style={styles.actionContent}>
-                      <View style={styles.actionIcon}>
-                        <Ionicons name={action.icon} size={28} color="white" />
-                      </View>
-                      <Text style={styles.actionLabel}>{action.label}</Text>
-                    </View>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </Link>
-            ))}
-          </View>
+        <GlassCard style={styles.progressCard} padding={spacing.xxl}>
+          <Text style={styles.progressTitle}>Today's progress</Text>
+          <ProgressRing progress={progress} completed={completedDoses} total={totalDoses} />
+        </GlassCard>
+
+        <View style={styles.actionsRow}>
+          {QUICK_ACTIONS.map((action) => (
+            <Link href={action.route} key={action.label} asChild>
+              <Pressable style={styles.actionItem}>
+                <GlassCard padding={spacing.md} radius={R.lg} style={styles.actionCard}>
+                  <View style={[styles.actionIcon, { backgroundColor: withAlpha(action.color, 0.16) }]}>
+                    <Ionicons name={action.icon} size={22} color={action.color} />
+                  </View>
+                  <Text style={styles.actionLabel} numberOfLines={1}>
+                    {action.label}
+                  </Text>
+                </GlassCard>
+              </Pressable>
+            </Link>
+          ))}
         </View>
 
         {showUpgradePrompt && (
-          <View style={styles.upgradePrompt}>
-            <View style={styles.upgradePromptContent}>
-              <Ionicons name="star" size={24} color={theme.colors.warning} />
-              <View style={styles.upgradePromptText}>
-                <Text style={styles.upgradePromptTitle}>
-                  Unlock Unlimited Medications
-                </Text>
-                <Text style={styles.upgradePromptDescription}>
-                  You've added {medications.length} medications. Upgrade to Premium for unlimited medications and advanced features.
+          <GlassCard style={styles.upgradeCard}>
+            <View style={styles.upgradeRow}>
+              <View style={[styles.actionIcon, { backgroundColor: withAlpha(accents.amber, 0.16) }]}>
+                <Ionicons name="star" size={20} color={accents.amber} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing.md }}>
+                <Text style={styles.upgradeTitle}>Unlock unlimited medications</Text>
+                <Text style={styles.upgradeText}>
+                  You've added {medications.length}. Go Premium for unlimited meds and more.
                 </Text>
               </View>
-              <TouchableOpacity
-                style={styles.upgradePromptClose}
-                onPress={() => setShowUpgradePrompt(false)}
-              >
+              <Pressable onPress={() => setShowUpgradePrompt(false)} hitSlop={8}>
                 <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
+              </Pressable>
             </View>
-            <TouchableOpacity
-              style={styles.upgradePromptButton}
-              onPress={() => router.push("/premium")}
-            >
-              <Text style={styles.upgradePromptButtonText}>Upgrade to Premium</Text>
-            </TouchableOpacity>
-          </View>
+            <Pressable style={styles.upgradeBtn} onPress={() => router.push("/premium")}>
+              <Text style={styles.upgradeBtnText}>Upgrade to Premium</Text>
+            </Pressable>
+          </GlassCard>
         )}
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Schedule</Text>
-            <Link href="/(tabs)/calendar" asChild>
-              <TouchableOpacity>
-                <Text style={styles.seeAllButton}>See All</Text>
-              </TouchableOpacity>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Today's schedule</Text>
+          <Link href="/(tabs)/calendar" asChild>
+            <Pressable>
+              <Text style={styles.seeAll}>See all</Text>
+            </Pressable>
+          </Link>
+        </View>
+
+        {todaysMedications.length === 0 ? (
+          <GlassCard style={styles.empty} padding={spacing.xxl}>
+            <Ionicons name="leaf-outline" size={44} color={theme.colors.textTertiary} />
+            <Text style={styles.emptyText}>No medications scheduled for today</Text>
+            <Link href="/medications/add" asChild>
+              <Pressable style={styles.emptyBtn}>
+                <Text style={styles.emptyBtnText}>Add medication</Text>
+              </Pressable>
             </Link>
-          </View>
-          {todaysMedications.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="medical-outline" size={48} color={theme.colors.borderLight} />
-              <Text style={styles.emptyStateText}>
-                No medications scheduled for today
-              </Text>
-              <Link href="/medications/add" asChild>
-                <TouchableOpacity style={styles.addMedicationButton}>
-                  <Text style={styles.addMedicationButtonText}>
-                    Add Medication
-                  </Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
-          ) : (
-            todaysMedications.map((medication) => {
-              const taken = isDoseTaken(medication.id);
-              return (
-                <View key={medication.id} style={styles.doseCard}>
-                  <View
-                    style={[
-                      styles.doseBadge,
-                      { backgroundColor: `${medication.color}15` },
-                    ]}
-                  >
-                    <Ionicons
-                      name="medical"
-                      size={24}
-                      color={medication.color}
-                    />
+          </GlassCard>
+        ) : (
+          todaysMedications.map((medication) => {
+            const taken = isDoseTaken(medication.id);
+            return (
+              <GlassCard key={medication.id} style={styles.doseCard} padding={spacing.lg}>
+                <View style={styles.doseRow}>
+                  <View style={[styles.doseIcon, { backgroundColor: withAlpha(medication.color, 0.16) }]}>
+                    <Ionicons name="medical" size={22} color={medication.color} />
                   </View>
-                  <View style={styles.doseInfo}>
-                    <View>
-                      <Text style={styles.medicineName}>{medication.name}</Text>
-                      <Text style={styles.dosageInfo}>{medication.dosage}</Text>
-                    </View>
-                    <View style={styles.doseTime}>
-                      <Ionicons name="time-outline" size={16} color={theme.colors.textSecondary} />
-                      <Text style={styles.timeText}>{medication.times[0]}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.medName}>{medication.name}</Text>
+                    <View style={styles.doseMeta}>
+                      <Text style={styles.doseDosage}>{medication.dosage}</Text>
+                      <View style={styles.dot} />
+                      <Ionicons name="time-outline" size={13} color={theme.colors.textSecondary} />
+                      <Text style={styles.doseTime}>{medication.times[0]}</Text>
                     </View>
                   </View>
                   {taken ? (
-                    <View style={[styles.takenBadge]}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={theme.colors.success}
-                      />
+                    <View style={styles.takenBadge}>
+                      <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
                       <Text style={styles.takenText}>Taken</Text>
                     </View>
                   ) : (
-                    <TouchableOpacity
-                      style={[
-                        styles.takeDoseButton,
-                        { backgroundColor: medication.color },
-                      ]}
-                      onPress={() => handleTakeDose(medication)}
-                    >
-                      <Text style={styles.takeDoseText}>Take</Text>
-                    </TouchableOpacity>
+                    <Pressable style={[styles.takeBtn, { backgroundColor: medication.color }]} onPress={() => handleTakeDose(medication)}>
+                      <Text style={styles.takeText}>Take</Text>
+                    </Pressable>
                   )}
                 </View>
-              );
-            })
-          )}
-        </View>
-      </View>
+              </GlassCard>
+            );
+          })
+        )}
+
+        <AdBanner />
+      </ScrollView>
 
       <PremiumModal
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
         title="Today's Medications"
-        subtitle={`${todaysMedications.length} medication${todaysMedications.length !== 1 ? 's' : ''} scheduled`}
+        subtitle={`${todaysMedications.length} medication${todaysMedications.length !== 1 ? "s" : ""} scheduled`}
         headerIcon="notifications"
         size="medium"
-        scrollable={true}
+        scrollable
       >
-        <View style={styles.notificationsList}>
+        <View style={{ gap: spacing.md }}>
           {todaysMedications.length === 0 ? (
-            <View style={styles.emptyNotifications}>
-              <Ionicons name="checkmark-circle-outline" size={64} color={theme.colors.success} />
-              <Text style={styles.emptyNotificationsTitle}>All Clear!</Text>
-              <Text style={styles.emptyNotificationsText}>
-                No medications scheduled for today
-              </Text>
+            <View style={styles.empty}>
+              <Ionicons name="checkmark-circle-outline" size={56} color={theme.colors.success} />
+              <Text style={styles.emptyText}>All clear — nothing scheduled</Text>
             </View>
           ) : (
             todaysMedications.map((medication) => (
-              <View key={medication.id} style={styles.notificationItem}>
-                <View style={[styles.notificationIcon, { backgroundColor: `${medication.color}15` }]}>
-                  <Ionicons name="medical" size={24} color={medication.color} />
+              <View key={medication.id} style={styles.notifItem}>
+                <View style={[styles.doseIcon, { backgroundColor: withAlpha(medication.color, 0.16) }]}>
+                  <Ionicons name="medical" size={20} color={medication.color} />
                 </View>
-                <View style={styles.notificationContent}>
-                  <Text style={styles.notificationTitle}>
-                    {medication.name}
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={styles.medName}>{medication.name}</Text>
+                  <Text style={styles.doseDosage}>
+                    {medication.dosage} · {medication.times[0]}
                   </Text>
-                  <Text style={styles.notificationMessage}>
-                    {medication.dosage}
-                  </Text>
-                  <View style={styles.notificationTimeContainer}>
-                    <Ionicons name="time-outline" size={14} color={theme.colors.textTertiary} />
-                    <Text style={styles.notificationTime}>
-                      {medication.times[0]}
-                    </Text>
-                  </View>
                 </View>
-                <View style={styles.notificationBadgeContainer}>
-                  {isDoseTaken(medication.id) ? (
-                    <View style={styles.takenBadgeSmall}>
-                      <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
-                    </View>
-                  ) : (
-                    <View style={styles.pendingBadge}>
-                      <Ionicons name="ellipse" size={12} color={theme.colors.warning} />
-                    </View>
-                  )}
-                </View>
+                <Ionicons
+                  name={isDoseTaken(medication.id) ? "checkmark-circle" : "ellipse-outline"}
+                  size={22}
+                  color={isDoseTaken(medication.id) ? theme.colors.success : theme.colors.warning}
+                />
               </View>
             ))
           )}
         </View>
       </PremiumModal>
-
-      {/* Banner Ad for Free Users */}
-      <AdBanner />
-    </ScrollView>
+    </ScreenBackground>
   );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: theme.colors.background,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 25,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-  },
-  headerContent: {
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  headerTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    marginBottom: 20,
-  },
-  greeting: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "white",
-    opacity: 0.9,
-  },
-  content: {
-    flex: 1,
-    paddingTop: 20,
-  },
-  quickActionsContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 25,
-  },
-  quickActionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 15,
-  },
-  actionButton: {
-    width: (width - 52) / 2,
-    height: 110,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  actionGradient: {
-    flex: 1,
-    padding: 15,
-  },
-  actionContent: {
-    flex: 1,
-    justifyContent: "space-between",
-  },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actionLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "white",
-    marginTop: 8,
-  },
-  section: {
-    paddingHorizontal: 20,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginBottom: 5,
-  },
-  seeAllButton: {
-    color: theme.colors.primary,
-    fontWeight: "600",
-  },
-  doseCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  doseBadge: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
-  },
-  doseInfo: {
-    flex: 1,
-    justifyContent: "space-between",
-  },
-  medicineName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  dosageInfo: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 4,
-  },
-  doseTime: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  timeText: {
-    marginLeft: 5,
-    color: theme.colors.textSecondary,
-    fontSize: 14,
-  },
-  takeDoseButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 15,
-    marginLeft: 10,
-  },
-  takeDoseText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  progressContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 10,
-  },
-  progressTextContainer: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  progressPercentage: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "white",
-  },
-  progressLabel: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
-    marginTop: 4,
-  },
-  progressRing: {
-    transform: [{ rotate: "-90deg" }],
-  },
-  flex1: {
-    flex: 1,
-  },
-  notificationButton: {
-    position: "relative",
-    padding: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: theme.colors.error,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: theme.colors.primaryDark,
-    paddingHorizontal: 4,
-  },
-  notificationCount: {
-    color: "white",
-    fontSize: 11,
-    fontWeight: "bold",
-  },
-  progressDetails: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginTop: 4,
-  },
-  notificationsList: {
-    gap: 12,
-  },
-  emptyNotifications: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyNotificationsTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyNotificationsText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    textAlign: "center",
-  },
-  notificationItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  notificationIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  notificationContent: {
-    flex: 1,
-  },
-  notificationTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  notificationMessage: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 6,
-  },
-  notificationTimeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  notificationTime: {
-    fontSize: 13,
-    color: theme.colors.textTertiary,
-  },
-  notificationBadgeContainer: {
-    marginLeft: 8,
-  },
-  takenBadgeSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.isDark ? "rgba(76, 175, 80, 0.2)" : "#E8F5E9",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pendingBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.isDark ? "rgba(255, 152, 0, 0.2)" : "#FFF3E0",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyState: {
-    alignItems: "center",
-    padding: 30,
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    marginTop: 10,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  addMedicationButton: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  addMedicationButtonText: {
-    color: "white",
-    fontWeight: "600",
-  },
-  takenBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.isDark ? "rgba(76, 175, 80, 0.2)" : "#E8F5E9",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginLeft: 10,
-  },
-  takenText: {
-    color: theme.colors.success,
-    fontWeight: "600",
-    fontSize: 14,
-    marginLeft: 4,
-  },
-  upgradePrompt: {
-    backgroundColor: theme.isDark ? "rgba(255, 152, 0, 0.15)" : "#FFF3E0",
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: theme.isDark ? "rgba(255, 152, 0, 0.3)" : "#FFE0B2",
-  },
-  upgradePromptContent: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  upgradePromptText: {
-    flex: 1,
-    marginLeft: 12,
-    marginRight: 8,
-  },
-  upgradePromptTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  upgradePromptDescription: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    lineHeight: 20,
-  },
-  upgradePromptClose: {
-    padding: 4,
-  },
-  upgradePromptButton: {
-    backgroundColor: theme.colors.warning,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignSelf: "flex-start",
-  },
-  upgradePromptButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-});
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    loading: { flex: 1, justifyContent: "center", alignItems: "center" },
+    scroll: { paddingHorizontal: spacing.xl, paddingTop: 64, paddingBottom: 120 },
+    header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xl },
+    greeting: { ...typography.title, color: theme.colors.text },
+    date: { ...typography.body, color: theme.colors.textSecondary, marginTop: 2 },
+    headerActions: { flexDirection: "row" },
+    progressCard: { alignItems: "center", marginBottom: spacing.lg },
+    progressTitle: { ...typography.label, color: theme.colors.textSecondary, textTransform: "uppercase", letterSpacing: 1, marginBottom: spacing.lg },
+    actionsRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.xl },
+    actionItem: { flex: 1 },
+    actionCard: { alignItems: "center", gap: spacing.sm },
+    actionIcon: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+    actionLabel: { ...typography.caption, color: theme.colors.text },
+    upgradeCard: { marginBottom: spacing.xl },
+    upgradeRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: spacing.md },
+    upgradeTitle: { ...typography.h2, color: theme.colors.text },
+    upgradeText: { ...typography.caption, color: theme.colors.textSecondary, marginTop: 2, lineHeight: 18 },
+    upgradeBtn: { backgroundColor: accents.amber, paddingVertical: 12, borderRadius: R.pill, alignItems: "center" },
+    upgradeBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
+    sectionTitle: { ...typography.h1, color: theme.colors.text },
+    seeAll: { color: theme.colors.primary, fontWeight: "600" },
+    empty: { alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
+    emptyText: { ...typography.body, color: theme.colors.textSecondary, textAlign: "center" },
+    emptyBtn: { backgroundColor: theme.colors.primary, paddingHorizontal: spacing.xl, paddingVertical: 12, borderRadius: R.pill },
+    emptyBtnText: { color: "#fff", fontWeight: "700" },
+    doseCard: { marginBottom: spacing.md },
+    doseRow: { flexDirection: "row", alignItems: "center" },
+    doseIcon: { width: 44, height: 44, borderRadius: 16, alignItems: "center", justifyContent: "center", marginRight: spacing.md },
+    medName: { ...typography.h2, color: theme.colors.text },
+    doseMeta: { flexDirection: "row", alignItems: "center", marginTop: 3, gap: 6 },
+    doseDosage: { ...typography.caption, color: theme.colors.textSecondary },
+    dot: { width: 3, height: 3, borderRadius: 3, backgroundColor: theme.colors.textTertiary },
+    doseTime: { ...typography.caption, color: theme.colors.textSecondary },
+    takenBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: R.pill, backgroundColor: withAlpha(theme.colors.success, 0.14) },
+    takenText: { color: theme.colors.success, fontWeight: "600", fontSize: 13 },
+    takeBtn: { paddingHorizontal: spacing.xl, paddingVertical: 10, borderRadius: R.pill },
+    takeText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    notifItem: { flexDirection: "row", alignItems: "center" },
+  });
 
-// Main component that shows different dashboards based on role
 export default function HomeScreen() {
   const { userRole } = useAuth();
-
-  if (userRole === "doctor") {
-    return <DoctorDashboard />;
-  }
-
+  if (userRole === "doctor") return <DoctorDashboard />;
   return <PatientHomeScreen />;
 }

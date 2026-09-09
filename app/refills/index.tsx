@@ -1,38 +1,27 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import {
-  Alert,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import {
-  getMedications,
-  Medication,
-  updateMedication,
-} from "../../utils/storage";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { GlassCard, GlassIconButton, ScreenBackground } from "../../components/ui/Glass";
+import { accents, radius as R, spacing, typography, withAlpha } from "../../constants/design";
+import { useTheme } from "../../contexts/ThemeContext";
+import { getMedications, Medication, updateMedication } from "../../utils/storage";
 import { isPremium } from "../../utils/subscription";
 
 export default function RefillTrackerScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [isPremiumUser, setIsPremiumUser] = useState(false);
 
   const loadMedications = useCallback(async () => {
     try {
-      const [allMedications, premium] = await Promise.all([
-        getMedications(),
-        isPremium(),
-      ]);
-      setMedications(allMedications);
+      const [all, premium] = await Promise.all([getMedications(), isPremium()]);
+      setMedications(all);
       setIsPremiumUser(premium);
-    } catch (error) {
-      console.error("Error loading medications:", error);
+    } catch (e) {
+      console.error("Error loading medications:", e);
     }
   }, []);
 
@@ -44,420 +33,132 @@ export default function RefillTrackerScreen() {
 
   const handleRefill = async (medication: Medication) => {
     try {
-      const updatedMedication = {
-        ...medication,
-        currentSupply: medication.totalSupply,
-        lastRefillDate: new Date().toISOString(),
-      };
-
-      await updateMedication(updatedMedication);
+      await updateMedication({ ...medication, currentSupply: medication.totalSupply, lastRefillDate: new Date().toISOString() });
       await loadMedications();
-
-      Alert.alert(
-        "Refill Recorded",
-        `${medication.name} has been refilled to ${medication.totalSupply} units.`
-      );
-    } catch (error) {
-      console.error("Error recording refill:", error);
+      Alert.alert("Refill Recorded", `${medication.name} has been refilled to ${medication.totalSupply} units.`);
+    } catch (e) {
+      console.error("Error recording refill:", e);
       Alert.alert("Error", "Failed to record refill. Please try again.");
     }
   };
 
-  const getSupplyStatus = (medication: Medication) => {
-    const percentage =
-      (medication.currentSupply / medication.totalSupply) * 100;
-    if (percentage <= medication.refillAt) {
-      return {
-        status: "Low",
-        color: "#F44336",
-        backgroundColor: "#FFEBEE",
-      };
-    } else if (percentage <= 50) {
-      return {
-        status: "Medium",
-        color: "#FF9800",
-        backgroundColor: "#FFF3E0",
-      };
-    } else {
-      return {
-        status: "Good",
-        color: "#4CAF50",
-        backgroundColor: "#E8F5E9",
-      };
-    }
+  const supplyStatus = (m: Medication) => {
+    const pct = (m.currentSupply / m.totalSupply) * 100;
+    if (pct <= m.refillAt) return { status: "Low", color: accents.rose };
+    if (pct <= 50) return { status: "Medium", color: accents.amber };
+    return { status: "Good", color: accents.emerald };
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={["#1a8e2d", "#146922"]}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      />
+    <ScreenBackground>
+      <View style={styles.header}>
+        <GlassIconButton icon="chevron-back" onPress={() => router.back()} />
+        <Text style={styles.title}>Refill tracker</Text>
+      </View>
 
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="chevron-back" size={28} color="#1a8e2d" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Refill Tracker</Text>
-        </View>
-
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {!isPremiumUser && (
-          <View style={styles.upgradeBanner}>
-            <View style={styles.upgradeBannerContent}>
-              <Ionicons name="notifications-outline" size={24} color="#1a8e2d" />
-              <View style={styles.upgradeBannerText}>
-                <Text style={styles.upgradeBannerTitle}>
-                  Automated Refill Alerts
-                </Text>
-                <Text style={styles.upgradeBannerDescription}>
-                  Get notified automatically when your medication supply is running low. Upgrade to Premium to enable automated alerts.
-                </Text>
+          <GlassCard style={styles.block}>
+            <View style={styles.bannerRow}>
+              <View style={styles.bannerIcon}>
+                <Ionicons name="notifications-outline" size={22} color={accents.emerald} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing.md }}>
+                <Text style={styles.bannerTitle}>Automated refill alerts</Text>
+                <Text style={styles.bannerText}>Get notified automatically when supply runs low. Upgrade to Premium to enable.</Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.upgradeButton}
-              onPress={() => router.push("/premium")}
-            >
-              <Text style={styles.upgradeButtonText}>Upgrade</Text>
-            </TouchableOpacity>
-          </View>
+            <Pressable style={styles.bannerBtn} onPress={() => router.push("/premium")}>
+              <Text style={styles.bannerBtnText}>Upgrade</Text>
+            </Pressable>
+          </GlassCard>
         )}
 
-        <ScrollView
-          style={styles.medicationsContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          {medications.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="medical-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyStateText}>No medications to track</Text>
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => router.push("/medications/add")}
-              >
-                <Text style={styles.addButtonText}>Add Medication</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            medications.map((medication) => {
-              const supplyStatus = getSupplyStatus(medication);
-              const supplyPercentage =
-                (medication.currentSupply / medication.totalSupply) * 100;
-
-              return (
-                <View key={medication.id} style={styles.medicationCard}>
-                  <View style={styles.medicationHeader}>
-                    <View
-                      style={[
-                        styles.medicationColor,
-                        { backgroundColor: medication.color },
-                      ]}
-                    />
-                    <View style={styles.medicationInfo}>
-                      <Text style={styles.medicationName}>
-                        {medication.name}
-                      </Text>
-                      <Text style={styles.medicationDosage}>
-                        {medication.dosage}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        { backgroundColor: supplyStatus.backgroundColor },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          { color: supplyStatus.color },
-                        ]}
-                      >
-                        {supplyStatus.status}
-                      </Text>
-                    </View>
+        {medications.length === 0 ? (
+          <GlassCard style={styles.empty} padding={spacing.xxl}>
+            <Ionicons name="medical-outline" size={44} color={theme.colors.textTertiary} />
+            <Text style={styles.emptyText}>No medications to track</Text>
+            <Pressable style={styles.addBtn} onPress={() => router.push("/medications/add")}>
+              <Text style={styles.addBtnText}>Add medication</Text>
+            </Pressable>
+          </GlassCard>
+        ) : (
+          medications.map((m) => {
+            const status = supplyStatus(m);
+            const pct = Math.max(0, Math.min(100, (m.currentSupply / m.totalSupply) * 100));
+            return (
+              <GlassCard key={m.id} style={styles.block} padding={spacing.lg}>
+                <View style={styles.medHeader}>
+                  <View style={[styles.medBar, { backgroundColor: m.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.medName}>{m.name}</Text>
+                    <Text style={styles.medDosage}>{m.dosage}</Text>
                   </View>
-
-                  <View style={styles.supplyContainer}>
-                    <View style={styles.supplyInfo}>
-                      <Text style={styles.supplyLabel}>Current Supply</Text>
-                      <Text style={styles.supplyValue}>
-                        {medication.currentSupply} units
-                      </Text>
-                    </View>
-                    <View style={styles.progressBarContainer}>
-                      <View style={styles.progressBarBackground}>
-                        <View
-                          style={[
-                            styles.progressBar,
-                            {
-                              width: `${supplyPercentage}%`,
-                              backgroundColor: supplyStatus.color,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.progressText}>
-                        {Math.round(supplyPercentage)}%
-                      </Text>
-                    </View>
-                    <View style={styles.refillInfo}>
-                      <Text style={styles.refillLabel}>
-                        Refill at: {medication.refillAt}%
-                      </Text>
-                      {medication.lastRefillDate && (
-                        <Text style={styles.lastRefillDate}>
-                          Last refill:{" "}
-                          {new Date(
-                            medication.lastRefillDate
-                          ).toLocaleDateString()}
-                        </Text>
-                      )}
-                    </View>
+                  <View style={[styles.statusBadge, { backgroundColor: withAlpha(status.color, 0.14) }]}>
+                    <Text style={[styles.statusText, { color: status.color }]}>{status.status}</Text>
                   </View>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.refillButton,
-                      {
-                        backgroundColor:
-                          supplyPercentage < 100 ? medication.color : "#e0e0e0",
-                      },
-                    ]}
-                    onPress={() => handleRefill(medication)}
-                    disabled={supplyPercentage >= 100}
-                  >
-                    <Text style={styles.refillButtonText}>Record Refill</Text>
-                  </TouchableOpacity>
                 </View>
-              );
-            })
-          )}
-        </ScrollView>
-      </View>
-    </View>
+
+                <View style={styles.supplyRow}>
+                  <Text style={styles.supplyLabel}>Current supply</Text>
+                  <Text style={styles.supplyValue}>{m.currentSupply} units</Text>
+                </View>
+                <View style={styles.track}>
+                  <View style={[styles.fill, { width: `${pct}%`, backgroundColor: status.color }]} />
+                </View>
+                <View style={styles.supplyRow}>
+                  <Text style={styles.refillLabel}>Refill at {m.refillAt}%</Text>
+                  <Text style={styles.refillLabel}>{Math.round(pct)}%</Text>
+                </View>
+                {m.lastRefillDate && (
+                  <Text style={styles.lastRefill}>Last refill: {new Date(m.lastRefillDate).toLocaleDateString()}</Text>
+                )}
+
+                <Pressable
+                  style={[styles.refillBtn, { backgroundColor: pct < 100 ? m.color : theme.colors.border }]}
+                  onPress={() => handleRefill(m)}
+                  disabled={pct >= 100}
+                >
+                  <Text style={styles.refillBtnText}>Record refill</Text>
+                </Pressable>
+              </GlassCard>
+            );
+          })
+        )}
+      </ScrollView>
+    </ScreenBackground>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
-  headerGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: Platform.OS === "ios" ? 140 : 120,
-  },
-  content: {
-    flex: 1,
-    paddingTop: Platform.OS === "ios" ? 50 : 30,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    zIndex: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "white",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "white",
-    marginLeft: 15,
-  },
-  medicationsContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  medicationCard: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  medicationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  medicationColor: {
-    width: 12,
-    height: 40,
-    borderRadius: 6,
-    marginRight: 16,
-  },
-  medicationInfo: {
-    flex: 1,
-  },
-  medicationName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  medicationDosage: {
-    fontSize: 14,
-    color: "#666",
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  supplyContainer: {
-    marginBottom: 16,
-  },
-  supplyInfo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  supplyLabel: {
-    fontSize: 14,
-    color: "#666",
-  },
-  supplyValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-  },
-  progressBarContainer: {
-    marginBottom: 8,
-  },
-  progressBarBackground: {
-    height: 8,
-    backgroundColor: "#f5f5f5",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 4,
-    textAlign: "right",
-  },
-  refillInfo: {
-    marginTop: 8,
-  },
-  refillLabel: {
-    fontSize: 12,
-    color: "#666",
-  },
-  lastRefillDate: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 2,
-  },
-  refillButton: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  refillButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  emptyState: {
-    alignItems: "center",
-    padding: 30,
-    backgroundColor: "white",
-    borderRadius: 16,
-    marginTop: 20,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: "#666",
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  addButton: {
-    backgroundColor: "#1a8e2d",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  addButtonText: {
-    color: "white",
-    fontWeight: "600",
-  },
-  upgradeBanner: {
-    backgroundColor: "#E8F5E9",
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#C8E6C9",
-  },
-  upgradeBannerContent: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  upgradeBannerText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  upgradeBannerTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  upgradeBannerDescription: {
-    fontSize: 14,
-    color: "#666",
-    lineHeight: 20,
-  },
-  upgradeButton: {
-    backgroundColor: "#1a8e2d",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignSelf: "flex-start",
-  },
-  upgradeButtonText: {
-    color: "white",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-});
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    header: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    title: { ...typography.title, color: theme.colors.text },
+    scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
+    block: { marginBottom: spacing.lg },
+    bannerRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: spacing.md },
+    bannerIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: withAlpha(accents.emerald, 0.14), alignItems: "center", justifyContent: "center" },
+    bannerTitle: { ...typography.h2, color: theme.colors.text },
+    bannerText: { ...typography.caption, color: theme.colors.textSecondary, marginTop: 2, lineHeight: 18 },
+    bannerBtn: { backgroundColor: accents.emerald, paddingVertical: 10, borderRadius: R.pill, alignItems: "center" },
+    bannerBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+    empty: { alignItems: "center", gap: spacing.md },
+    emptyText: { ...typography.body, color: theme.colors.textSecondary },
+    addBtn: { backgroundColor: theme.colors.primary, paddingHorizontal: spacing.xl, paddingVertical: 12, borderRadius: R.pill },
+    addBtnText: { color: "#fff", fontWeight: "700" },
+    medHeader: { flexDirection: "row", alignItems: "center", marginBottom: spacing.lg },
+    medBar: { width: 6, height: 40, borderRadius: 3, marginRight: spacing.md },
+    medName: { ...typography.h2, color: theme.colors.text },
+    medDosage: { ...typography.caption, color: theme.colors.textSecondary, marginTop: 2 },
+    statusBadge: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: R.pill },
+    statusText: { fontSize: 13, fontWeight: "700" },
+    supplyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
+    supplyLabel: { ...typography.caption, color: theme.colors.textSecondary },
+    supplyValue: { ...typography.label, color: theme.colors.text },
+    track: { height: 8, backgroundColor: withAlpha(theme.colors.text, 0.08), borderRadius: 4, overflow: "hidden", marginBottom: spacing.sm },
+    fill: { height: "100%", borderRadius: 4 },
+    refillLabel: { ...typography.caption, color: theme.colors.textSecondary },
+    lastRefill: { ...typography.caption, color: theme.colors.textTertiary, marginTop: spacing.xs },
+    refillBtn: { paddingVertical: 13, borderRadius: R.pill, alignItems: "center", marginTop: spacing.lg },
+    refillBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  });

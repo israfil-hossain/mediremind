@@ -1,57 +1,30 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Switch,
-  Dimensions,
-  Platform,
-  KeyboardAvoidingView,
-  Alert,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
-import { addMedication, getMedications } from "../../utils/storage";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  scheduleMedicationReminder,
-  scheduleRefillReminder,
-} from "../../utils/notifications";
-import { canAddMedication, canUseRefillAlerts, getMedicationLimit } from "../../utils/subscription";
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native";
+import { GlassButton, GlassCard, GlassField, GlassIconButton, GlassSurface, ScreenBackground } from "../../components/ui/Glass";
+import { accents, radius as R, spacing, typography, withAlpha } from "../../constants/design";
 import { useTheme } from "../../contexts/ThemeContext";
-
-const { width } = Dimensions.get("window");
+import { scheduleMedicationReminder, scheduleRefillReminder } from "../../utils/notifications";
+import { addMedication, getMedications } from "../../utils/storage";
+import { canAddMedication, canUseRefillAlerts, getMedicationLimit } from "../../utils/subscription";
 
 const FREQUENCIES = [
-  {
-    id: "1",
-    label: "Once daily",
-    icon: "sunny-outline" as const,
-    times: ["09:00"],
-  },
-  {
-    id: "2",
-    label: "Twice daily",
-    icon: "sync-outline" as const,
-    times: ["09:00", "21:00"],
-  },
-  {
-    id: "3",
-    label: "Three times daily",
-    icon: "time-outline" as const,
-    times: ["09:00", "15:00", "21:00"],
-  },
-  {
-    id: "4",
-    label: "Four times daily",
-    icon: "repeat-outline" as const,
-    times: ["09:00", "13:00", "17:00", "21:00"],
-  },
+  { id: "1", label: "Once daily", icon: "sunny-outline" as const, times: ["09:00"] },
+  { id: "2", label: "Twice daily", icon: "sync-outline" as const, times: ["09:00", "21:00"] },
+  { id: "3", label: "Three times daily", icon: "time-outline" as const, times: ["09:00", "15:00", "21:00"] },
+  { id: "4", label: "Four times daily", icon: "repeat-outline" as const, times: ["09:00", "13:00", "17:00", "21:00"] },
   { id: "5", label: "As needed", icon: "calendar-outline" as const, times: [] },
 ];
 
@@ -63,80 +36,71 @@ const DURATIONS = [
   { id: "5", label: "Ongoing", value: -1 },
 ];
 
+const MED_COLORS = ["#10B981", "#0EA5E9", "#F59E0B", "#F43F5E", "#8B5CF6"];
+
 export default function AddMedicationScreen() {
   const { theme } = useTheme();
   const styles = createStyles(theme);
   const router = useRouter();
+
   const [form, setForm] = useState({
     name: "",
     dosage: "",
     frequency: "",
     duration: "",
     startDate: new Date(),
-    times: ["09:00"],
+    times: ["09:00"] as string[],
     notes: "",
     reminderEnabled: true,
     refillReminder: false,
     currentSupply: "",
     refillAt: "",
   });
-
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedFrequency, setSelectedFrequency] = useState("");
-  const [selectedDuration, setSelectedDuration] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [medicationCount, setMedicationCount] = useState(0);
-  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   useEffect(() => {
-    loadMedicationCount();
+    getMedications()
+      .then((m) => setMedicationCount(m.length))
+      .catch((e) => console.error("Error loading medication count:", e));
   }, []);
 
-  const loadMedicationCount = async () => {
-    try {
-      const medications = await getMedications();
-      setMedicationCount(medications.length);
-    } catch (error) {
-      console.error("Error loading medication count:", error);
-    }
+  const update = (patch: Partial<typeof form>, clearErr?: string[]) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+    if (clearErr) setErrors((prev) => ({ ...prev, ...Object.fromEntries(clearErr.map((k) => [k, ""])) }));
   };
 
   const validateForm = () => {
-    const newErrors: { [key: string]: string } = {};
-
-    if (!form.name.trim()) {
-      newErrors.name = "Medication name is required";
-    }
-
-    if (!form.dosage.trim()) {
-      newErrors.dosage = "Dosage is required";
-    }
-
-    if (!form.frequency) {
-      newErrors.frequency = "Frequency is required";
-    }
-
-    if (!form.duration) {
-      newErrors.duration = "Duration is required";
-    }
-
+    const e: { [key: string]: string } = {};
+    if (!form.name.trim()) e.name = "Medication name is required";
+    if (!form.dosage.trim()) e.dosage = "Dosage is required";
+    if (!form.frequency) e.frequency = "Frequency is required";
+    if (!form.duration) e.duration = "Duration is required";
     if (form.refillReminder) {
-      if (!form.currentSupply) {
-        newErrors.currentSupply =
-          "Current supply is required for refill tracking";
-      }
-      if (!form.refillAt) {
-        newErrors.refillAt = "Refill alert threshold is required";
-      }
-      if (Number(form.refillAt) >= Number(form.currentSupply)) {
-        newErrors.refillAt = "Refill alert must be less than current supply";
-      }
+      if (!form.currentSupply) e.currentSupply = "Current supply is required";
+      if (!form.refillAt) e.refillAt = "Refill threshold is required";
+      if (Number(form.refillAt) >= Number(form.currentSupply)) e.refillAt = "Alert must be less than supply";
     }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const proceedWithSave = async (data: any) => {
+    await addMedication(data);
+    if (data.reminderEnabled) await scheduleMedicationReminder(data);
+    if (data.refillReminder && (await canUseRefillAlerts())) await scheduleRefillReminder(data);
+    Alert.alert("Success", "Medication added successfully", [{ text: "OK", onPress: () => router.back() }], { cancelable: false });
+  };
+
+  const limitAlert = async () => {
+    const limit = await getMedicationLimit();
+    Alert.alert("Medication Limit Reached", `Free version allows up to ${limit} medications. Upgrade to Premium for unlimited.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Upgrade to Premium", onPress: () => router.push("/premium") },
+    ]);
   };
 
   const handleSave = async () => {
@@ -145,914 +109,275 @@ export default function AddMedicationScreen() {
         Alert.alert("Error", "Please fill in all required fields correctly");
         return;
       }
-
       if (isSubmitting) return;
       setIsSubmitting(true);
 
-      // Generate a random color
-      const colors = ["#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
-      const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
-      const medicationData = {
+      const data = {
         id: Math.random().toString(36).substr(2, 9),
         ...form,
         currentSupply: form.currentSupply ? Number(form.currentSupply) : 0,
         totalSupply: form.currentSupply ? Number(form.currentSupply) : 0,
         refillAt: form.refillAt ? Number(form.refillAt) : 0,
         startDate: form.startDate.toISOString(),
-        color: randomColor,
+        color: MED_COLORS[Math.floor(Math.random() * MED_COLORS.length)],
       };
 
-      // Check medication limit before adding
-      const canAdd = await canAddMedication(medicationCount);
-      if (!canAdd) {
-        const limit = await getMedicationLimit();
-        Alert.alert(
-          "Medication Limit Reached",
-          `Free version allows up to ${limit} medications. Upgrade to Premium for unlimited medications.`,
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Upgrade to Premium",
-              onPress: () => router.push("/premium"),
-            },
-          ]
-        );
+      if (!(await canAddMedication(medicationCount))) {
+        await limitAlert();
         setIsSubmitting(false);
         return;
       }
 
-      // Check if refill alerts are available
-      const canUseRefill = await canUseRefillAlerts();
-      if (medicationData.refillReminder && !canUseRefill) {
-        Alert.alert(
-          "Premium Feature",
-          "Automated refill alerts are available in Premium. You can still track refills manually.",
-          [
-            { text: "Continue Without Alerts", onPress: async () => {
-              medicationData.refillReminder = false;
-              await proceedWithSave(medicationData);
-            }},
-            {
-              text: "Upgrade to Premium",
-              onPress: () => router.push("/premium"),
+      if (data.refillReminder && !(await canUseRefillAlerts())) {
+        Alert.alert("Premium Feature", "Automated refill alerts are available in Premium. You can still track refills manually.", [
+          {
+            text: "Continue Without Alerts",
+            onPress: async () => {
+              data.refillReminder = false;
+              await proceedWithSave(data);
             },
-          ]
-        );
+          },
+          { text: "Upgrade to Premium", onPress: () => router.push("/premium") },
+        ]);
         setIsSubmitting(false);
         return;
       }
 
-      await proceedWithSave(medicationData);
+      await proceedWithSave(data);
     } catch (error: any) {
       console.error("Save error:", error);
-      if (error.message === "MEDICATION_LIMIT_REACHED") {
-        const limit = await getMedicationLimit();
-        Alert.alert(
-          "Medication Limit Reached",
-          `Free version allows up to ${limit} medications. Upgrade to Premium for unlimited medications.`,
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Upgrade to Premium",
-              onPress: () => router.push("/premium"),
-            },
-          ]
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          "Failed to save medication. Please try again.",
-          [{ text: "OK" }],
-          { cancelable: false }
-        );
-      }
+      if (error.message === "MEDICATION_LIMIT_REACHED") await limitAlert();
+      else Alert.alert("Error", "Failed to save medication. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const proceedWithSave = async (medicationData: any) => {
-    try {
-      await addMedication(medicationData);
-
-      // Schedule reminders if enabled
-      if (medicationData.reminderEnabled) {
-        await scheduleMedicationReminder(medicationData);
-      }
-      if (medicationData.refillReminder) {
-        const canUseRefill = await canUseRefillAlerts();
-        if (canUseRefill) {
-          await scheduleRefillReminder(medicationData);
-        }
-      }
-
-      await loadMedicationCount();
-
-      Alert.alert(
-        "Success",
-        "Medication added successfully",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ],
-        { cancelable: false }
-      );
-    } catch (error) {
-      console.error("Error in proceedWithSave:", error);
-      throw error;
+  const toggleRefill = async (value: boolean) => {
+    if (value && !(await canUseRefillAlerts())) {
+      Alert.alert("Premium Feature", "Automated refill alerts are available in Premium.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Upgrade to Premium", onPress: () => router.push("/premium") },
+      ]);
+      return;
     }
-  };
-
-  const handleFrequencySelect = (freq: string) => {
-    setSelectedFrequency(freq);
-    const selectedFreq = FREQUENCIES.find((f) => f.label === freq);
-    setForm((prev) => ({
-      ...prev,
-      frequency: freq,
-      times: selectedFreq?.times || [],
-    }));
-    if (errors.frequency) {
-      setErrors((prev) => ({ ...prev, frequency: "" }));
-    }
-  };
-
-  const handleDurationSelect = (dur: string) => {
-    setSelectedDuration(dur);
-    setForm((prev) => ({ ...prev, duration: dur }));
-    if (errors.duration) {
-      setErrors((prev) => ({ ...prev, duration: "" }));
-    }
-  };
-
-  const renderFrequencyOptions = () => {
-    return (
-      <View style={styles.optionsGrid}>
-        {FREQUENCIES.map((freq) => (
-          <TouchableOpacity
-            key={freq.id}
-            style={[
-              styles.optionCard,
-              selectedFrequency === freq.label && styles.selectedOptionCard,
-            ]}
-            onPress={() => {
-              setSelectedFrequency(freq.label);
-              setForm({ ...form, frequency: freq.label });
-            }}
-          >
-            <View
-              style={[
-                styles.optionIcon,
-                selectedFrequency === freq.label && styles.selectedOptionIcon,
-              ]}
-            >
-              <Ionicons
-                name={freq.icon}
-                size={24}
-                color={selectedFrequency === freq.label ? "white" : "#666"}
-              />
-            </View>
-            <Text
-              style={[
-                styles.optionLabel,
-                selectedFrequency === freq.label && styles.selectedOptionLabel,
-              ]}
-            >
-              {freq.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
-
-  const renderDurationOptions = () => {
-    return (
-      <View style={styles.optionsGrid}>
-        {DURATIONS.map((dur) => (
-          <TouchableOpacity
-            key={dur.id}
-            style={[
-              styles.optionCard,
-              selectedDuration === dur.label && styles.selectedOptionCard,
-            ]}
-            onPress={() => {
-              setSelectedDuration(dur.label);
-              setForm({ ...form, duration: dur.label });
-            }}
-          >
-            <Text
-              style={[
-                styles.durationNumber,
-                selectedDuration === dur.label && styles.selectedDurationNumber,
-              ]}
-            >
-              {dur.value > 0 ? dur.value : "∞"}
-            </Text>
-            <Text
-              style={[
-                styles.optionLabel,
-                selectedDuration === dur.label && styles.selectedOptionLabel,
-              ]}
-            >
-              {dur.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
+    update({ refillReminder: value }, value ? undefined : ["currentSupply", "refillAt"]);
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={["#1a8e2d", "#146922"]}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      />
-
-      <View style={styles.content}>
+    <ScreenBackground>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="chevron-back" size={28} color="#1a8e2d" />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>New Medication</Text>
+          <GlassIconButton icon="chevron-back" onPress={() => router.back()} />
+          <View style={{ marginLeft: spacing.md }}>
+            <Text style={styles.title}>New medication</Text>
             {medicationCount > 0 && (
-              <Text style={styles.medicationCount}>
+              <Text style={styles.count}>
                 {medicationCount} medication{medicationCount !== 1 ? "s" : ""} added
               </Text>
             )}
           </View>
         </View>
 
-        <ScrollView
-          style={styles.formContainer}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.formContentContainer}
-        >
-          {/* Basic Information */}
-          <View style={styles.section}>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.mainInput, errors.name && styles.inputError]}
-                placeholder="Medication Name"
-                placeholderTextColor="#999"
-                value={form.name}
-                onChangeText={(text) => {
-                  setForm({ ...form, name: text });
-                  if (errors.name) {
-                    setErrors({ ...errors, name: "" });
-                  }
-                }}
-              />
-              {errors.name && (
-                <Text style={styles.errorText}>{errors.name}</Text>
-              )}
-            </View>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.mainInput, errors.dosage && styles.inputError]}
-                placeholder="Dosage (e.g., 500mg)"
-                placeholderTextColor="#999"
-                value={form.dosage}
-                onChangeText={(text) => {
-                  setForm({ ...form, dosage: text });
-                  if (errors.dosage) {
-                    setErrors({ ...errors, dosage: "" });
-                  }
-                }}
-              />
-              {errors.dosage && (
-                <Text style={styles.errorText}>{errors.dosage}</Text>
-              )}
-            </View>
-          </View>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <GlassCard padding={spacing.lg} style={styles.block}>
+            <GlassField placeholder="Medication name" value={form.name} onChangeText={(t) => update({ name: t }, ["name"])} containerStyle={errors.name ? styles.errBorder : undefined} />
+            {errors.name && <Text style={styles.err}>{errors.name}</Text>}
+            <GlassField placeholder="Dosage (e.g., 500mg)" value={form.dosage} onChangeText={(t) => update({ dosage: t }, ["dosage"])} containerStyle={[{ marginTop: spacing.md }, errors.dosage ? styles.errBorder : null]} />
+            {errors.dosage && <Text style={styles.err}>{errors.dosage}</Text>}
+          </GlassCard>
 
-          {/* Schedule */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>How often?</Text>
-            {errors.frequency && (
-              <Text style={styles.errorText}>{errors.frequency}</Text>
-            )}
-            {renderFrequencyOptions()}
-
-            <Text style={styles.sectionTitle}>For how long?</Text>
-            {errors.duration && (
-              <Text style={styles.errorText}>{errors.duration}</Text>
-            )}
-            {renderDurationOptions()}
-
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <View style={styles.dateIconContainer}>
-                <Ionicons name="calendar" size={20} color="#1a8e2d" />
-              </View>
-              <Text style={styles.dateButtonText}>
-                Starts {form.startDate.toLocaleDateString()}
-              </Text>
-              <Ionicons name="chevron-forward" size={20} color="#666" />
-            </TouchableOpacity>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={form.startDate}
-                mode="date"
-                onChange={(event, date) => {
-                  setShowDatePicker(false);
-                  if (date) setForm({ ...form, startDate: date });
-                }}
-              />
-            )}
-
-            {form.frequency && form.frequency !== "As needed" && (
-              <View style={styles.timesContainer}>
-                <Text style={styles.timesTitle}>Medication Times</Text>
-                {form.times.map((time, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.timeButton}
-                    onPress={() => {
-                      setShowTimePicker(true);
-                    }}
-                  >
-                    <View style={styles.timeIconContainer}>
-                      <Ionicons name="time-outline" size={20} color="#1a8e2d" />
+          <Text style={styles.sectionTitle}>How often?</Text>
+          {errors.frequency && <Text style={styles.err}>{errors.frequency}</Text>}
+          <View style={styles.grid}>
+            {FREQUENCIES.map((freq) => {
+              const active = form.frequency === freq.label;
+              return (
+                <Pressable key={freq.id} style={styles.gridItem} onPress={() => update({ frequency: freq.label, times: freq.times }, ["frequency"])}>
+                  <OptionCard active={active}>
+                    <View style={[styles.optIcon, { backgroundColor: active ? withAlpha("#fff", 0.2) : withAlpha(accents.emerald, 0.14) }]}>
+                      <Ionicons name={freq.icon} size={22} color={active ? "#fff" : accents.emerald} />
                     </View>
-                    <Text style={styles.timeButtonText}>{time}</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#666" />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {showTimePicker && (
-              <DateTimePicker
-                value={(() => {
-                  const [hours, minutes] = form.times[0].split(":").map(Number);
-                  const date = new Date();
-                  date.setHours(hours, minutes, 0, 0);
-                  return date;
-                })()}
-                mode="time"
-                onChange={(event, date) => {
-                  setShowTimePicker(false);
-                  if (date) {
-                    const newTime = date.toLocaleTimeString("default", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                    });
-                    setForm((prev) => ({
-                      ...prev,
-                      times: prev.times.map((t, i) => (i === 0 ? newTime : t)),
-                    }));
-                  }
-                }}
-              />
-            )}
+                    <Text style={[styles.optLabel, active && styles.optLabelActive]}>{freq.label}</Text>
+                  </OptionCard>
+                </Pressable>
+              );
+            })}
           </View>
 
-          {/* Reminders */}
-          <View style={styles.section}>
-            <View style={styles.card}>
-              <View style={styles.switchRow}>
-                <View style={styles.switchLabelContainer}>
-                  <View style={styles.iconContainer}>
-                    <Ionicons name="notifications" size={20} color="#1a8e2d" />
+          <Text style={styles.sectionTitle}>For how long?</Text>
+          {errors.duration && <Text style={styles.err}>{errors.duration}</Text>}
+          <View style={styles.grid}>
+            {DURATIONS.map((dur) => {
+              const active = form.duration === dur.label;
+              return (
+                <Pressable key={dur.id} style={styles.gridItem} onPress={() => update({ duration: dur.label }, ["duration"])}>
+                  <OptionCard active={active}>
+                    <Text style={[styles.durNum, active && styles.optLabelActive]}>{dur.value > 0 ? dur.value : "∞"}</Text>
+                    <Text style={[styles.optLabel, active && styles.optLabelActive]}>{dur.label}</Text>
+                  </OptionCard>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable style={styles.row} onPress={() => setShowDatePicker(true)}>
+            <View style={styles.rowIcon}>
+              <Ionicons name="calendar" size={20} color={accents.emerald} />
+            </View>
+            <Text style={styles.rowText}>Starts {form.startDate.toLocaleDateString()}</Text>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+          </Pressable>
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={form.startDate}
+              mode="date"
+              onChange={(_, date) => {
+                setShowDatePicker(false);
+                if (date) update({ startDate: date });
+              }}
+            />
+          )}
+
+          {form.frequency && form.frequency !== "As needed" && (
+            <View style={{ marginTop: spacing.md }}>
+              <Text style={styles.subTitle}>Medication times</Text>
+              {form.times.map((time, index) => (
+                <Pressable key={index} style={styles.row} onPress={() => setShowTimePicker(true)}>
+                  <View style={styles.rowIcon}>
+                    <Ionicons name="time-outline" size={20} color={accents.emerald} />
                   </View>
-                  <View>
-                    <Text style={styles.switchLabel}>Reminders</Text>
-                    <Text style={styles.switchSubLabel}>
-                      Get notified when it's time to take your medication
-                    </Text>
-                  </View>
+                  <Text style={styles.rowText}>{time}</Text>
+                  <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {showTimePicker && (
+            <DateTimePicker
+              value={(() => {
+                const [h, m] = form.times[0].split(":").map(Number);
+                const d = new Date();
+                d.setHours(h, m, 0, 0);
+                return d;
+              })()}
+              mode="time"
+              onChange={(_, date) => {
+                setShowTimePicker(false);
+                if (date) {
+                  const newTime = date.toLocaleTimeString("default", { hour: "2-digit", minute: "2-digit", hour12: false });
+                  setForm((prev) => ({ ...prev, times: prev.times.map((t, i) => (i === 0 ? newTime : t)) }));
+                }
+              }}
+            />
+          )}
+
+          <GlassCard padding={spacing.lg} style={styles.block}>
+            <View style={styles.switchRow}>
+              <View style={styles.rowIcon}>
+                <Ionicons name="notifications" size={20} color={accents.emerald} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing.md }}>
+                <Text style={styles.switchLabel}>Reminders</Text>
+                <Text style={styles.switchSub}>Get notified when it's time to take your medication</Text>
+              </View>
+              <Switch value={form.reminderEnabled} onValueChange={(v) => update({ reminderEnabled: v })} trackColor={{ false: theme.colors.border, true: accents.emerald }} thumbColor="#fff" />
+            </View>
+          </GlassCard>
+
+          <GlassCard padding={spacing.lg} style={styles.block}>
+            <View style={styles.switchRow}>
+              <View style={styles.rowIcon}>
+                <Ionicons name="reload" size={20} color={accents.emerald} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing.md }}>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text style={styles.switchLabel}>Refill tracking</Text>
+                  {!form.refillReminder && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>Premium</Text>
+                    </View>
+                  )}
                 </View>
-                <Switch
-                  style={{marginBottom: 30}}
-                  value={form.reminderEnabled}
-                  onValueChange={(value) =>
-                    setForm({ ...form, reminderEnabled: value })
-                  }
-                  trackColor={{ false: "#ddd", true: "#1a8e2d" }}
-                  thumbColor="white"
-                />
+                <Text style={styles.switchSub}>{form.refillReminder ? "Get notified when you need to refill" : "Automated refill alerts (Premium)"}</Text>
               </View>
+              <Switch value={form.refillReminder} onValueChange={toggleRefill} trackColor={{ false: theme.colors.border, true: accents.emerald }} thumbColor="#fff" />
             </View>
-          </View>
-
-          {/* Refill Tracking */}
-          <View style={styles.section}>
-            <View style={styles.card}>
-              <View style={styles.switchRow}>
-                <View style={styles.switchLabelContainer}>
-                  <View style={styles.iconContainer}>
-                    <Ionicons name="reload" size={20} color="#1a8e2d" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <Text style={styles.switchLabel}>Refill Tracking</Text>
-                      {!form.refillReminder && (
-                        <View style={styles.premiumBadge}>
-                          <Text style={styles.premiumBadgeText}>Premium</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.switchSubLabel}>
-                      {form.refillReminder
-                        ? "Get notified when you need to refill"
-                        : "Automated refill alerts (Premium feature)"}
-                    </Text>
-                  </View>
+            {form.refillReminder && (
+              <View style={styles.refillRow}>
+                <View style={{ flex: 1 }}>
+                  <GlassField placeholder="Current supply" value={form.currentSupply} onChangeText={(t) => update({ currentSupply: t }, ["currentSupply"])} keyboardType="numeric" containerStyle={errors.currentSupply ? styles.errBorder : undefined} />
+                  {errors.currentSupply && <Text style={styles.err}>{errors.currentSupply}</Text>}
                 </View>
-                <Switch
-                  value={form.refillReminder}
-                  style={{marginBottom: 30}}
-                  onValueChange={async (value) => {
-                    if (value) {
-                      const canUseRefill = await canUseRefillAlerts();
-                      if (!canUseRefill) {
-                        Alert.alert(
-                          "Premium Feature",
-                          "Automated refill alerts are available in Premium. Upgrade to get notified when your medication supply is running low.",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Upgrade to Premium",
-                              onPress: () => router.push("/premium"),
-                            },
-                          ]
-                        );
-                        return;
-                      }
-                    }
-                    setForm({ ...form, refillReminder: value });
-                    if (!value) {
-                      setErrors({
-                        ...errors,
-                        currentSupply: "",
-                        refillAt: "",
-                      });
-                    }
-                  }}
-                  trackColor={{ false: "#ddd", true: "#1a8e2d" }}
-                  thumbColor="white"
-                />
+                <View style={{ flex: 1 }}>
+                  <GlassField placeholder="Alert at" value={form.refillAt} onChangeText={(t) => update({ refillAt: t }, ["refillAt"])} keyboardType="numeric" containerStyle={errors.refillAt ? styles.errBorder : undefined} />
+                  {errors.refillAt && <Text style={styles.err}>{errors.refillAt}</Text>}
+                </View>
               </View>
-              {form.refillReminder && (
-                <View style={styles.refillInputs}>
-                  <View style={styles.inputRow}>
-                    <View style={[styles.inputContainer, styles.flex1]}>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          errors.currentSupply && styles.inputError,
-                        ]}
-                        placeholder="Current Supply"
-                        placeholderTextColor="#999"
-                        value={form.currentSupply}
-                        onChangeText={(text) => {
-                          setForm({ ...form, currentSupply: text });
-                          if (errors.currentSupply) {
-                            setErrors({ ...errors, currentSupply: "" });
-                          }
-                        }}
-                        keyboardType="numeric"
-                      />
-                      {errors.currentSupply && (
-                        <Text style={styles.errorText}>
-                          {errors.currentSupply}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={[styles.inputContainer, styles.flex1]}>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          errors.refillAt && styles.inputError,
-                        ]}
-                        placeholder="Alert at"
-                        placeholderTextColor="#999"
-                        value={form.refillAt}
-                        onChangeText={(text) => {
-                          setForm({ ...form, refillAt: text });
-                          if (errors.refillAt) {
-                            setErrors({ ...errors, refillAt: "" });
-                          }
-                        }}
-                        keyboardType="numeric"
-                      />
-                      {errors.refillAt && (
-                        <Text style={styles.errorText}>{errors.refillAt}</Text>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              )}
-            </View>
-          </View>
+            )}
+          </GlassCard>
 
-          {/* Notes */}
-          <View style={styles.section}>
-            <View style={styles.textAreaContainer}>
-              <TextInput
-                style={styles.textArea}
-                placeholder="Add notes or special instructions..."
-                placeholderTextColor="#999"
-                value={form.notes}
-                onChangeText={(text) => setForm({ ...form, notes: text })}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-            </View>
-          </View>
+          <GlassCard padding={spacing.xs} style={styles.block}>
+            <GlassField
+              placeholder="Add notes or special instructions..."
+              value={form.notes}
+              onChangeText={(t) => update({ notes: t })}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              containerStyle={{ borderWidth: 0, backgroundColor: "transparent" }}
+              style={{ height: 96 }}
+            />
+          </GlassCard>
+
+          <GlassButton label={isSubmitting ? "Adding…" : "Add medication"} onPress={handleSave} loading={isSubmitting} style={{ marginTop: spacing.sm }} />
+          <GlassButton label="Cancel" variant="ghost" onPress={() => router.back()} disabled={isSubmitting} />
         </ScrollView>
-
-
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[
-              styles.saveButton,
-              isSubmitting && styles.saveButtonDisabled,
-            ]}
-            onPress={handleSave}
-            disabled={isSubmitting}
-          >
-            <LinearGradient
-              colors={["#1a8e2d", "#146922"]}
-              style={styles.saveButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              <Text style={styles.saveButtonText}>
-                {isSubmitting ? "Adding..." : "Add Medication"}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => router.back()}
-            disabled={isSubmitting}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
+      </KeyboardAvoidingView>
+    </ScreenBackground>
   );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  headerGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: Platform.OS === "ios" ? 140 : 120,
-  },
-  content: {
-    flex: 1,
-    paddingTop: Platform.OS === "ios" ? 50 : 30,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    zIndex: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.card,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "white",
-    marginLeft: 15,
-  },
-  medicationCount: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginLeft: 15,
-    marginTop: 2,
-  },
-  premiumBadge: {
-    backgroundColor: "#FF9800",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  premiumBadgeText: {
-    color: "white",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  formContainer: {
-    flex: 1,
-  },
-  formContentContainer: {
-    padding: 20,
-  },
-  section: {
-    marginBottom: 25,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginBottom: 15,
-    marginTop: 10,
-  },
-  mainInput: {
-    fontSize: 20,
-    color: theme.colors.text,
-    padding: 15,
-  },
-  optionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginHorizontal: -5,
-  },
-  optionCard: {
-    width: (width - 60) / 2,
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    padding: 15,
-    margin: 5,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  selectedOptionCard: {
-    backgroundColor: "#1a8e2d",
-    borderColor: "#1a8e2d",
-  },
-  optionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: theme.colors.background,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  selectedOptionIcon: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-  },
-  optionLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: theme.colors.text,
-    textAlign: "center",
-  },
-  selectedOptionLabel: {
-    color: "white",
-  },
-  durationNumber: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#1a8e2d",
-    marginBottom: 5,
-  },
-  selectedDurationNumber: {
-    color: "white",
-  },
-  inputContainer: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  dateButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    padding: 15,
-    marginTop: 15,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  dateIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.background,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  dateButtonText: {
-    flex: 1,
-    fontSize: 16,
-    color: theme.colors.text,
-  },
-  card: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    maxWidth: "100%",
-  },
-  switchLabelContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.background,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
-  },
-  switchLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: theme.colors.text,
-  },
-  switchSubLabel: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    marginTop: 4,
-  },
-  inputRow: {
-    flexDirection: "row",
-    marginTop: 15,
-    gap: 10,
-  },
-  flex1: {
-    flex: 1,
-  },
-  input: {
-    padding: 15,
-    fontSize: 16,
-    color: theme.colors.text,
-  },
-  textAreaContainer: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  textArea: {
-    height: 100,
-    padding: 15,
-    fontSize: 16,
-    color: theme.colors.text,
-  },
-  footer: {
-    padding: 20,
-    backgroundColor: theme.colors.card,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  saveButton: {
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 12,
-  },
-  saveButtonGradient: {
-    paddingVertical: 15,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  saveButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  cancelButton: {
-    paddingVertical: 15,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: theme.colors.card,
-  },
-  cancelButtonText: {
-    color: theme.colors.textSecondary,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  inputError: {
-    borderColor: "#FF5252",
-  },
-  errorText: {
-    color: "#FF5252",
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 12,
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  refillInputs: {
-    marginTop: 15,
-  },
-  timesContainer: {
-    marginTop: 20,
-  },
-  timesTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: theme.colors.text,
-    marginBottom: 10,
-  },
-  timeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    padding: 15,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  timeIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.background,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  timeButtonText: {
-    flex: 1,
-    fontSize: 16,
-    color: theme.colors.text,
-  },
-  adContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.background,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-});
+function OptionCard({ active, children }: { active: boolean; children: React.ReactNode }) {
+  const { theme } = useTheme();
+  if (active) {
+    return <View style={[optCardBase, { backgroundColor: accents.emerald }]}>{children}</View>;
+  }
+  return (
+    <GlassSurface radius={R.md} style={optCardBase}>
+      {children}
+    </GlassSurface>
+  );
+}
+
+const optCardBase = { padding: spacing.lg, alignItems: "center" as const, minHeight: 104, justifyContent: "center" as const };
+
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    title: { ...typography.title, color: theme.colors.text },
+    count: { ...typography.caption, color: theme.colors.textSecondary, marginTop: 2 },
+    scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
+    block: { marginBottom: spacing.lg },
+    sectionTitle: { ...typography.h1, color: theme.colors.text, marginBottom: spacing.md, marginTop: spacing.xs },
+    subTitle: { ...typography.h2, color: theme.colors.text, marginBottom: spacing.md },
+    grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.lg },
+    gridItem: { width: "47.5%" },
+    optIcon: { width: 46, height: 46, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
+    optLabel: { ...typography.label, color: theme.colors.text, textAlign: "center" },
+    optLabelActive: { color: "#fff" },
+    durNum: { fontSize: 26, fontWeight: "800", color: accents.emerald, marginBottom: spacing.xs },
+    row: { flexDirection: "row", alignItems: "center", backgroundColor: theme.isDark ? withAlpha("#FFFFFF", 0.06) : withAlpha("#FFFFFF", 0.7), borderRadius: R.md, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, padding: spacing.lg, marginBottom: spacing.md },
+    rowIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: withAlpha(accents.emerald, 0.14), alignItems: "center", justifyContent: "center" },
+    rowText: { flex: 1, ...typography.body, color: theme.colors.text, marginLeft: spacing.md },
+    switchRow: { flexDirection: "row", alignItems: "center" },
+    switchLabel: { ...typography.h2, color: theme.colors.text },
+    switchSub: { ...typography.caption, color: theme.colors.textSecondary, marginTop: 3, lineHeight: 17 },
+    refillRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
+    badge: { backgroundColor: accents.amber, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: R.sm, marginLeft: spacing.sm },
+    badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+    err: { color: accents.rose, fontSize: 12, marginTop: spacing.xs, marginBottom: spacing.xs, marginLeft: spacing.xs },
+    errBorder: { borderColor: accents.rose },
+  });

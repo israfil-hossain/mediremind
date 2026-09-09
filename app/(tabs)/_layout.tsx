@@ -1,161 +1,108 @@
-import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Tabs, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { isPremium } from "../../utils/subscription";
-import { useTheme } from "../../contexts/ThemeContext";
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { GlassSurface } from "../../components/ui/Glass";
+import { cardShadow, radius as R } from "../../constants/design";
 import { useAuth } from "../../contexts/AuthContext";
-import { View, ActivityIndicator } from "react-native";
+import { useTheme } from "../../contexts/ThemeContext";
+import { isPremium } from "../../utils/subscription";
+
+function useTabScreenOptions() {
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottom = Math.max(insets.bottom, 12);
+  return {
+    headerShown: false,
+    tabBarActiveTintColor: theme.colors.primary,
+    tabBarInactiveTintColor: theme.colors.tabBarInactive,
+    tabBarBackground: () => (
+      <GlassSurface radius={R.pill} style={StyleSheet.absoluteFill} />
+    ),
+    tabBarItemStyle: { paddingTop: 8 },
+    tabBarStyle: {
+      position: "absolute" as const,
+      left: 16,
+      right: 16,
+      bottom,
+      height: 64,
+      borderRadius: R.pill,
+      backgroundColor: Platform.OS === "android" ? theme.colors.card : "transparent",
+      borderTopWidth: 0,
+      paddingTop: 0,
+      paddingBottom: 0,
+      ...cardShadow,
+    },
+    tabBarLabelStyle: { fontSize: 11, fontWeight: "600" as const, marginBottom: 8 },
+  };
+}
 
 export default function TabsLayout() {
   const { theme } = useTheme();
   const { user, userRole, isLoading } = useAuth();
   const router = useRouter();
+  const screenOptions = useTabScreenOptions();
   const [isPremiumUser, setIsPremiumUser] = useState(false);
   const [premiumChecked, setPremiumChecked] = useState(false);
 
   useEffect(() => {
-    // Check premium status when user role changes (doctors skip premium check)
     if (userRole && userRole !== "doctor" && !premiumChecked) {
-      checkPremiumStatus();
+      isPremium().then(setIsPremiumUser);
       setPremiumChecked(true);
     }
   }, [userRole, premiumChecked]);
 
   useEffect(() => {
-    // Redirect to auth if not authenticated AND loading is complete
     if (!isLoading && !user) {
       router.replace("/auth");
     }
   }, [isLoading, user, router]);
 
-  const checkPremiumStatus = async () => {
-    const premium = await isPremium();
-    setIsPremiumUser(premium);
-  };
-
-  // Show loading while checking auth
   if (isLoading || !user) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.background }}>
+      <View style={[styles.center, { backgroundColor: theme.colors.background }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
-  // Doctor Navigation
   if (userRole === "doctor") {
     return (
-      <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: theme.colors.primary,
-          tabBarInactiveTintColor: theme.colors.tabBarInactive,
-          tabBarStyle: {
-            backgroundColor: theme.colors.tabBar,
-            borderTopWidth: 1,
-            borderTopColor: theme.colors.border,
-            height: 75,
-            paddingBottom: 15,
-            paddingTop: 10,
-            paddingHorizontal: 10,
-          },
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: "600",
-          },
-        }}
-      >
+      <Tabs screenOptions={screenOptions}>
         <Tabs.Screen
           name="index"
-          options={{
-            title: "Dashboard",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="medical" size={size} color={color} />
-            ),
-          }}
+          options={{ title: "Dashboard", tabBarIcon: ({ color, size }) => <Ionicons name="medical" size={size} color={color} /> }}
         />
         <Tabs.Screen
           name="history"
-          options={{
-            title: "My Patients",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="people" size={size} color={color} />
-            ),
-          }}
+          options={{ title: "Patients", tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} /> }}
         />
         <Tabs.Screen
           name="prescriptions"
-          options={{
-            title: "Prescriptions",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="document-text" size={size} color={color} />
-            ),
-          }}
+          options={{ title: "Prescriptions", tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} /> }}
         />
         <Tabs.Screen
           name="profile"
-          options={{
-            title: "Profile",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="person" size={size} color={color} />
-            ),
-          }}
+          options={{ title: "Profile", tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }}
         />
-        {/* Hide unused tabs for doctors */}
-        <Tabs.Screen
-          name="calendar"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="analytics"
-          options={{
-            href: null,
-          }}
-        />
+        <Tabs.Screen name="calendar" options={{ href: null }} />
+        <Tabs.Screen name="analytics" options={{ href: null }} />
       </Tabs>
     );
   }
 
-  // Patient Navigation
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.tabBarInactive,
-        tabBarStyle: {
-          backgroundColor: theme.colors.tabBar,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border,
-          height: 75,
-          paddingBottom: 15,
-          paddingTop: 10,
-          paddingHorizontal: 10,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "600",
-        },
-      }}
-    >
+    <Tabs screenOptions={screenOptions}>
       <Tabs.Screen
         name="index"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
-        }}
+        options={{ title: "Home", tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
           title: "Calendar",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
           href: isPremiumUser ? null : "/(tabs)/calendar",
         }}
       />
@@ -163,43 +110,29 @@ export default function TabsLayout() {
         name="analytics"
         options={{
           title: "Analytics",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="analytics" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="analytics" size={size} color={color} />,
           href: isPremiumUser ? "/(tabs)/analytics" : null,
         }}
       />
       <Tabs.Screen
         name="prescriptions"
-        options={{
-          title: "My Doctor",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="medkit" size={size} color={color} />
-          ),
-        }}
+        options={{ title: "My Doctor", tabBarIcon: ({ color, size }) => <Ionicons name="medkit" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: isPremiumUser ? "Family Care" : "History",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons
-              name={isPremiumUser ? "people" : "time"}
-              size={size}
-              color={color}
-            />
-          ),
+          title: isPremiumUser ? "Family" : "History",
+          tabBarIcon: ({ color, size }) => <Ionicons name={isPremiumUser ? "people" : "time"} size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
-        }}
+        options={{ title: "Profile", tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+});

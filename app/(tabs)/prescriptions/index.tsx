@@ -1,41 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { GlassButton, GlassCard, GlassField, GlassIconButton, ScreenBackground } from "../../../components/ui/Glass";
+import { accents, radius as R, spacing, typography, withAlpha } from "../../../constants/design";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useTheme } from "../../../contexts/ThemeContext";
+import { Appointment, createAppointment, getPatientAppointments } from "../../../utils/appointments";
 import {
-  Appointment,
-  createAppointment,
-  getPatientAppointments,
-} from "../../../utils/appointments";
-import {
-  getPatientConnections,
-  searchDoctorsByEmail,
   checkExistingPatientConnection,
+  createNotification,
   createPatientConnection,
   createPatientInvitation,
-  createNotification,
+  getPatientConnections,
   getUserById,
-  PatientConnection,
+  searchDoctorsByEmail,
 } from "../../../utils/connections";
-import {
-  deletePrescription as deleteSharedPrescription,
-  getPendingPrescriptions,
-  getUserPrescriptions,
-  SharedPrescription,
-} from "../../../utils/prescriptionManager";
+import { SharedPrescription, deletePrescription as deleteSharedPrescription, getPendingPrescriptions, getUserPrescriptions } from "../../../utils/prescriptionManager";
 import { UserProfile } from "../../../utils/userManagement";
 
 interface DoctorConnection {
@@ -48,7 +29,6 @@ interface DoctorConnection {
   doctorProfile?: UserProfile;
 }
 
-// My Doctor Screen for Patients
 function MyDoctorScreen() {
   const { theme } = useTheme();
   const styles = createStyles(theme);
@@ -60,8 +40,6 @@ function MyDoctorScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
-
-  // Appointment booking state
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorConnection | null>(null);
   const [appointmentDate, setAppointmentDate] = useState("");
@@ -89,92 +67,71 @@ function MyDoctorScreen() {
   };
 
   const loadConnections = async () => {
-    if (!user) return [];
+    if (!user) return;
     try {
       const patientConns = await getPatientConnections(user.uid);
-      const connectionsData: DoctorConnection[] = [];
-
+      const data: DoctorConnection[] = [];
       for (const conn of patientConns) {
         const doctorProfile = await getUserById(conn.doctorId);
-        connectionsData.push({
-          id: conn.id,
-          doctorId: conn.doctorId,
-          patientId: conn.patientId,
-          status: conn.status,
-          initiatedBy: conn.initiatedBy,
-          createdAt: conn.createdAt,
-          doctorProfile: doctorProfile || undefined,
-        });
+        data.push({ id: conn.id, doctorId: conn.doctorId, patientId: conn.patientId, status: conn.status, initiatedBy: conn.initiatedBy, createdAt: conn.createdAt, doctorProfile: doctorProfile || undefined });
       }
-
-      setConnections(connectionsData);
-      return connectionsData;
-    } catch (error) {
-      console.error("Error loading connections:", error);
-      return [];
+      setConnections(data);
+    } catch (e) {
+      console.error("Error loading connections:", e);
     }
   };
 
   const loadAppointments = async () => {
     if (!user) return;
     try {
-      const appointments = await getPatientAppointments(user.uid);
-      setMyAppointments(appointments);
-    } catch (error: any) {
-      console.error("Error loading appointments:", error);
+      setMyAppointments(await getPatientAppointments(user.uid));
+    } catch (e) {
+      console.error("Error loading appointments:", e);
       setMyAppointments([]);
     }
   };
 
-  // Load pending prescriptions count
   useEffect(() => {
     if (!user) return;
-    const loadPendingCount = async () => {
-      try {
-        const pending = await getPendingPrescriptions(user.uid);
-        setPendingCount(pending.length);
-      } catch (error) {
-        console.error("Error loading pending count:", error);
-      }
-    };
-    loadPendingCount();
+    getPendingPrescriptions(user.uid)
+      .then((p) => setPendingCount(p.length))
+      .catch((e) => console.error("Error loading pending count:", e));
   }, [user]);
 
+  const handleInviteDoctor = async (email: string) => {
+    if (!user) return;
+    try {
+      setIsInviting(true);
+      await createPatientInvitation(user.uid, user.email || "", email);
+      Alert.alert("Invitation Sent", `An invitation email will be sent to ${email}`);
+      setSearchEmail("");
+    } catch (e: any) {
+      console.error("Error inviting doctor:", e);
+      Alert.alert("Error", "Failed to send invitation");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   const handleSearchDoctor = async () => {
-    if (!searchEmail.trim()) {
-      Alert.alert("Error", "Please enter a doctor's email");
-      return;
-    }
-    if (!user) {
-      Alert.alert("Error", "You must be logged in");
-      return;
-    }
+    if (!searchEmail.trim()) return Alert.alert("Error", "Please enter a doctor's email");
+    if (!user) return Alert.alert("Error", "You must be logged in");
     try {
       setIsSearching(true);
       const doctors = await searchDoctorsByEmail(searchEmail);
-
       if (doctors.length === 0) {
-        Alert.alert(
-          "Doctor Not Found",
-          "This doctor is not registered in the system. Would you like to send an invitation?",
-          [
-            { text: "Cancel", style: "cancel" },
-            { text: "Invite", onPress: () => handleInviteDoctor(searchEmail) },
-          ]
-        );
+        Alert.alert("Doctor Not Found", "This doctor is not registered. Send an invitation?", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Invite", onPress: () => handleInviteDoctor(searchEmail) },
+        ]);
         return;
       }
-
       const doctor = doctors[0];
-      const hasExisting = await checkExistingPatientConnection(doctor.id, user.uid);
-
-      if (hasExisting) {
+      if (await checkExistingPatientConnection(doctor.id, user.uid)) {
         Alert.alert("Info", "You already have a connection with this doctor");
         return;
       }
-
-      const connectionId = await createPatientConnection(doctor.id, user.uid);
-
+      await createPatientConnection(doctor.id, user.uid);
       await createNotification({
         userId: doctor.id,
         type: "connection_request",
@@ -182,55 +139,20 @@ function MyDoctorScreen() {
         message: `${user.displayName || user.email || "A patient"} wants to connect with you`,
         data: { fromUserId: user.uid },
       });
-
       Alert.alert("Success", "Connection request sent to doctor");
       setSearchEmail("");
       loadConnections();
-    } catch (error: any) {
-      console.error("Error searching doctor:", error);
-      Alert.alert("Error", error.message || "Failed to send connection request");
+    } catch (e: any) {
+      console.error("Error searching doctor:", e);
+      Alert.alert("Error", e.message || "Failed to send connection request");
     } finally {
       setIsSearching(false);
     }
   };
 
-  const handleInviteDoctor = async (email: string) => {
-    if (!user) {
-      Alert.alert("Error", "You must be logged in");
-      return;
-    }
-    try {
-      setIsInviting(true);
-      await createPatientInvitation(
-        user.uid,
-        user.email || "",
-        email
-      );
-      Alert.alert("Invitation Sent", `An invitation email will be sent to ${email}`);
-      setSearchEmail("");
-    } catch (error: any) {
-      console.error("Error inviting doctor:", error);
-      Alert.alert("Error", "Failed to send invitation");
-    } finally {
-      setIsInviting(false);
-    }
-  };
-
-  const openAppointmentModal = (connection: DoctorConnection) => {
-    setSelectedDoctor(connection);
-    setAppointmentDate("");
-    setAppointmentTime("");
-    setAppointmentReason("");
-    setShowAppointmentModal(true);
-  };
-
   const handleBookAppointment = async () => {
     if (!user || !selectedDoctor) return;
-    if (!appointmentDate.trim() || !appointmentTime.trim()) {
-      Alert.alert("Error", "Please select a date and time for the appointment");
-      return;
-    }
-
+    if (!appointmentDate.trim() || !appointmentTime.trim()) return Alert.alert("Error", "Please select a date and time");
     setIsBooking(true);
     try {
       await createAppointment({
@@ -243,16 +165,12 @@ function MyDoctorScreen() {
         reason: appointmentReason || "General consultation",
         status: "pending",
       });
-
-      Alert.alert(
-        "Appointment Requested",
-        `Your appointment request with Dr. ${selectedDoctor.doctorProfile?.name || "Doctor"} on ${appointmentDate} at ${appointmentTime} has been sent.`
-      );
+      Alert.alert("Appointment Requested", `Your request with Dr. ${selectedDoctor.doctorProfile?.name || "Doctor"} on ${appointmentDate} at ${appointmentTime} has been sent.`);
       setShowAppointmentModal(false);
       loadAppointments();
-    } catch (error: any) {
-      console.error("Error booking appointment:", error);
-      Alert.alert("Error", error.message || "Failed to book appointment");
+    } catch (e: any) {
+      console.error("Error booking appointment:", e);
+      Alert.alert("Error", e.message || "Failed to book appointment");
     } finally {
       setIsBooking(false);
     }
@@ -274,225 +192,145 @@ function MyDoctorScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <LinearGradient colors={["#0D9488", "#134E4A"]} style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>My Doctor</Text>
-          </View>
-        </LinearGradient>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0D9488" />
-          <Text style={styles.loadingText}>Loading...</Text>
+      <ScreenBackground>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>My Doctor</Text>
         </View>
-      </View>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={accents.teal} />
+          <Text style={styles.muted}>Loading…</Text>
+        </View>
+      </ScreenBackground>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={["#0D9488", "#134E4A"]} style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>My Doctor</Text>
-          <TouchableOpacity
-            style={styles.pendingButton}
-            onPress={() => router.push("/(tabs)/prescriptions/pending")}
-          >
-            <Ionicons name="notifications-outline" size={24} color="white" />
-            {pendingCount > 0 && (
-              <View style={styles.pendingBadge}>
-                <Text style={styles.pendingBadgeText}>{pendingCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+    <ScreenBackground>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>My Doctor</Text>
+        <Pressable style={styles.pendingBtn} onPress={() => router.push("/(tabs)/prescriptions/pending")}>
+          <GlassIconButton icon="notifications-outline" onPress={() => router.push("/(tabs)/prescriptions/pending")} />
+          {pendingCount > 0 && (
+            <View style={styles.pendingBadge}>
+              <Text style={styles.pendingBadgeText}>{pendingCount}</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Search/Add Doctor Section */}
-        <View style={styles.searchCard}>
-          <Text style={styles.searchTitle}>Add a Doctor</Text>
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Enter doctor's email"
-              value={searchEmail}
-              onChangeText={setSearchEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!isSearching && !isInviting}
-            />
-            <TouchableOpacity
-              style={[styles.searchButton, (isSearching || isInviting) && styles.searchButtonDisabled]}
-              onPress={handleSearchDoctor}
-              disabled={isSearching || isInviting}
-            >
-              {isSearching || isInviting ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Ionicons name="search" size={24} color="white" />
-              )}
-            </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}>
+        <GlassCard style={styles.block}>
+          <Text style={styles.cardTitle}>Add a Doctor</Text>
+          <View style={styles.searchRow}>
+            <GlassField placeholder="Enter doctor's email" value={searchEmail} onChangeText={setSearchEmail} keyboardType="email-address" autoCapitalize="none" editable={!isSearching && !isInviting} containerStyle={{ flex: 1 }} />
+            <Pressable style={[styles.searchBtn, (isSearching || isInviting) && { opacity: 0.6 }]} onPress={handleSearchDoctor} disabled={isSearching || isInviting}>
+              {isSearching || isInviting ? <ActivityIndicator color="#fff" /> : <Ionicons name="search" size={22} color="#fff" />}
+            </Pressable>
           </View>
-          <Text style={styles.searchHint}>Search by email to connect with your doctor</Text>
-        </View>
+          <Text style={styles.hint}>Search by email to connect with your doctor</Text>
+        </GlassCard>
 
-        {/* Upcoming Appointments */}
-        {upcomingAppointments && upcomingAppointments.length > 0 && (
-          <View style={styles.section}>
+        {upcomingAppointments.length > 0 && (
+          <>
             <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
             {upcomingAppointments.map((appt) => (
-              <View key={appt.id} style={styles.appointmentCard}>
-                <View style={styles.appointmentIcon}>
-                  <Ionicons name="calendar" size={24} color="#0D9488" />
+              <GlassCard key={appt.id} style={styles.rowCard} padding={spacing.lg}>
+                <View style={styles.iconChip}>
+                  <Ionicons name="calendar" size={22} color={accents.teal} />
                 </View>
-                <View style={styles.appointmentInfo}>
-                  <Text style={styles.appointmentDoctor}>Dr. {appt.doctorName}</Text>
-                  <Text style={styles.appointmentDate}>
-                    {appt.date} at {appt.time}
-                  </Text>
-                  <Text style={styles.appointmentReason}>{appt.reason}</Text>
-                  <View style={[styles.statusPill, { backgroundColor: appt.status === "confirmed" ? "#D1FAE5" : "#FEF3C7" }]}>
-                    <Text style={[styles.statusPillText, { color: appt.status === "confirmed" ? "#059669" : "#D97706" }]}>
-                      {appt.status === "pending" ? "⏳ Pending" : "✓ Confirmed"}
-                    </Text>
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={styles.rowTitle}>Dr. {appt.doctorName}</Text>
+                  <Text style={styles.muted}>{appt.date} at {appt.time}</Text>
+                  <Text style={styles.muted}>{appt.reason}</Text>
+                  <View style={[styles.statusPill, { backgroundColor: withAlpha(appt.status === "confirmed" ? accents.emerald : accents.amber, 0.14) }]}>
+                    <Text style={[styles.statusPillText, { color: appt.status === "confirmed" ? accents.emerald : accents.amber }]}>{appt.status === "pending" ? "Pending" : "Confirmed"}</Text>
                   </View>
                 </View>
-              </View>
+              </GlassCard>
             ))}
-          </View>
+          </>
         )}
 
-        {/* Pending Connections */}
-        {pendingConnections && pendingConnections.length > 0 && (
-          <View style={styles.section}>
+        {pendingConnections.length > 0 && (
+          <>
             <Text style={styles.sectionTitle}>Pending Requests</Text>
-            {pendingConnections.map((connection) => (
-              <View key={connection.id} style={styles.doctorCard}>
-                <View style={styles.doctorIcon}>
-                  <Ionicons name="medical" size={30} color="#0D9488" />
+            {pendingConnections.map((c) => (
+              <GlassCard key={c.id} style={styles.rowCard} padding={spacing.lg}>
+                <View style={styles.iconChip}>
+                  <Ionicons name="medical" size={26} color={accents.teal} />
                 </View>
-                <View style={styles.doctorInfo}>
-                  <Text style={styles.doctorName}>
-                    {connection.doctorProfile?.name || "Doctor"}
-                  </Text>
-                  <Text style={styles.doctorSpecialty}>
-                    {connection.doctorProfile?.doctorProfile?.specialty || "Pending"}
-                  </Text>
-                  <Text style={styles.pendingStatus}>⏳ Waiting for approval</Text>
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={styles.rowTitle}>{c.doctorProfile?.name || "Doctor"}</Text>
+                  <Text style={styles.muted}>{c.doctorProfile?.doctorProfile?.specialty || "Pending"}</Text>
+                  <Text style={styles.pendingText}>Waiting for approval</Text>
                 </View>
-              </View>
+              </GlassCard>
             ))}
-          </View>
+          </>
         )}
 
-        {/* Connected Doctors */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Doctors</Text>
-          {acceptedConnections && acceptedConnections.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={64} color="#CBD5E1" />
-              <Text style={styles.emptyText}>No doctors connected yet</Text>
-              <Text style={styles.emptySubtext}>Add a doctor above to get started</Text>
-            </View>
-          ) : (
-            acceptedConnections && acceptedConnections.map((connection) => (
-              <TouchableOpacity
-                key={connection.id}
-                style={styles.doctorCard}
-                onPress={() => router.push(`/doctor/${connection.doctorId}`)}
-              >
-                <View style={styles.doctorIcon}>
-                  <Ionicons name="medical" size={30} color="#0D9488" />
+        <Text style={styles.sectionTitle}>My Doctors</Text>
+        {acceptedConnections.length === 0 ? (
+          <GlassCard style={styles.empty} padding={spacing.xxl}>
+            <Ionicons name="people-outline" size={48} color={theme.colors.textTertiary} />
+            <Text style={styles.emptyText}>No doctors connected yet</Text>
+            <Text style={styles.muted}>Add a doctor above to get started</Text>
+          </GlassCard>
+        ) : (
+          acceptedConnections.map((c) => (
+            <Pressable key={c.id} onPress={() => router.push(`/doctor/${c.doctorId}`)}>
+              <GlassCard style={styles.rowCard} padding={spacing.lg}>
+                <View style={styles.iconChip}>
+                  <Ionicons name="medical" size={26} color={accents.teal} />
                 </View>
-                <View style={styles.doctorInfo}>
-                  <Text style={styles.doctorName}>
-                    Dr. {connection.doctorProfile?.name || "Doctor"}
-                  </Text>
-                  <Text style={styles.doctorSpecialty}>
-                    {connection.doctorProfile?.doctorProfile?.specialty || "General Physician"}
-                  </Text>
-                  {connection.doctorProfile?.doctorProfile?.clinicName && (
-                    <Text style={styles.doctorClinic}>
-                      {connection.doctorProfile.doctorProfile.clinicName}
-                    </Text>
-                  )}
-                  <Text style={styles.doctorEmail}>{connection.doctorProfile?.email}</Text>
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={styles.rowTitle}>Dr. {c.doctorProfile?.name || "Doctor"}</Text>
+                  <Text style={styles.muted}>{c.doctorProfile?.doctorProfile?.specialty || "General Physician"}</Text>
+                  {c.doctorProfile?.doctorProfile?.clinicName && <Text style={styles.muted}>{c.doctorProfile.doctorProfile.clinicName}</Text>}
+                  <Text style={styles.emailText}>{c.doctorProfile?.email}</Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.bookButton}
-                  onPress={() => openAppointmentModal(connection)}
+                <Pressable
+                  style={styles.bookBtn}
+                  onPress={() => {
+                    setSelectedDoctor(c);
+                    setAppointmentDate("");
+                    setAppointmentTime("");
+                    setAppointmentReason("");
+                    setShowAppointmentModal(true);
+                  }}
                 >
-                  <Ionicons name="calendar-outline" size={20} color="white" />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
+                  <Ionicons name="calendar-outline" size={20} color="#fff" />
+                </Pressable>
+              </GlassCard>
+            </Pressable>
+          ))
+        )}
       </ScrollView>
 
-      {/* Appointment Booking Modal */}
-      {showAppointmentModal && selectedDoctor && (
+      <Modal visible={showAppointmentModal && !!selectedDoctor} transparent animationType="fade" onRequestClose={() => setShowAppointmentModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <GlassCard style={styles.modalCard} padding={spacing.xl}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Book Appointment</Text>
-              <TouchableOpacity onPress={() => setShowAppointmentModal(false)}>
-                <Ionicons name="close" size={28} color="#64748B" />
-              </TouchableOpacity>
+              <Pressable onPress={() => setShowAppointmentModal(false)} hitSlop={8}>
+                <Ionicons name="close" size={26} color={theme.colors.text} />
+              </Pressable>
             </View>
-
-            <Text style={styles.modalDoctorName}>
-              With Dr. {selectedDoctor.doctorProfile?.name || "Doctor"}
-            </Text>
-
-            <Text style={styles.inputLabel}>Date (YYYY-MM-DD) *</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="2026-05-20"
-              value={appointmentDate}
-              onChangeText={setAppointmentDate}
-            />
-
-            <Text style={styles.inputLabel}>Time (HH:MM) *</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="10:00"
-              value={appointmentTime}
-              onChangeText={setAppointmentTime}
-            />
-
-            <Text style={styles.inputLabel}>Reason</Text>
-            <TextInput
-              style={[styles.modalInput, { height: 80, textAlignVertical: "top" }]}
-              placeholder="e.g., Follow-up, General checkup"
-              value={appointmentReason}
-              onChangeText={setAppointmentReason}
-              multiline
-            />
-
-            <TouchableOpacity
-              style={[styles.modalBookButton, isBooking && styles.modalBookButtonDisabled]}
-              onPress={handleBookAppointment}
-              disabled={isBooking}
-            >
-              {isBooking ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.modalBookButtonText}>Request Appointment</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+            <Text style={styles.muted}>With Dr. {selectedDoctor?.doctorProfile?.name || "Doctor"}</Text>
+            <Text style={styles.label}>Date (YYYY-MM-DD) *</Text>
+            <GlassField placeholder="2026-05-20" value={appointmentDate} onChangeText={setAppointmentDate} containerStyle={styles.f} />
+            <Text style={styles.label}>Time (HH:MM) *</Text>
+            <GlassField placeholder="10:00" value={appointmentTime} onChangeText={setAppointmentTime} containerStyle={styles.f} />
+            <Text style={styles.label}>Reason</Text>
+            <GlassField placeholder="e.g., Follow-up" value={appointmentReason} onChangeText={setAppointmentReason} multiline style={{ height: 70 }} containerStyle={styles.f} />
+            <GlassButton label="Request Appointment" color={accents.teal} onPress={handleBookAppointment} loading={isBooking} style={{ marginTop: spacing.sm }} />
+          </GlassCard>
         </View>
-      )}
-    </View>
+      </Modal>
+    </ScreenBackground>
   );
 }
 
-// Prescriptions Screen for Doctors
 function PrescriptionsListScreen() {
   const { theme } = useTheme();
   const styles = createStyles(theme);
@@ -504,14 +342,11 @@ function PrescriptionsListScreen() {
 
   const loadPrescriptions = useCallback(async () => {
     if (!user || !userRole) return;
-
     try {
       setIsLoading(true);
-      // Load from Firestore
-      const firestorePrescriptions = await getUserPrescriptions(user.uid, userRole);
-      setPrescriptions(firestorePrescriptions);
-    } catch (error) {
-      console.error("Error loading prescriptions:", error);
+      setPrescriptions(await getUserPrescriptions(user.uid, userRole));
+    } catch (e) {
+      console.error("Error loading prescriptions:", e);
       setPrescriptions([]);
       Alert.alert("Error", "Failed to load prescriptions");
     } finally {
@@ -531,601 +366,144 @@ function PrescriptionsListScreen() {
     setRefreshing(false);
   }, [loadPrescriptions]);
 
-  const handleDelete = (id: string, title: string) => {
-    Alert.alert(
-      "Delete Prescription",
-      `Are you sure you want to delete "${title}"?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteSharedPrescription(id);
-              await loadPrescriptions();
-            } catch (error) {
-              Alert.alert("Error", "Failed to delete prescription");
-            }
-          },
+  const handleDelete = (id: string, title: string) =>
+    Alert.alert("Delete Prescription", `Are you sure you want to delete "${title}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteSharedPrescription(id);
+            await loadPrescriptions();
+          } catch {
+            Alert.alert("Error", "Failed to delete prescription");
+          }
         },
-      ]
-    );
-  };
+      },
+    ]);
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return "N/A";
-
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    } catch (error) {
+      return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    } catch {
       return "N/A";
     }
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={["#7C4DFF", "#5E35B1"]} style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Prescriptions</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push("/(tabs)/prescriptions/create")}
-          >
-            <Ionicons name="add" size={28} color="white" />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+    <ScreenBackground>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Prescriptions</Text>
+        <GlassIconButton icon="add" onPress={() => router.push("/(tabs)/prescriptions/create")} />
+      </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}>
         {isLoading ? (
-          <View style={styles.emptyState}>
-            <ActivityIndicator size="large" color="#7C4DFF" />
-            <Text style={styles.emptyText}>Loading prescriptions...</Text>
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={accents.violet} />
+            <Text style={styles.muted}>Loading prescriptions…</Text>
           </View>
-        ) : !prescriptions || prescriptions.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={64} color="#ccc" />
+        ) : prescriptions.length === 0 ? (
+          <GlassCard style={styles.empty} padding={spacing.xxl}>
+            <Ionicons name="document-text-outline" size={48} color={theme.colors.textTertiary} />
             <Text style={styles.emptyText}>No prescriptions yet</Text>
-            <Text style={styles.emptySubtext}>
-              Tap the + button to create a prescription
-            </Text>
-          </View>
+            <Text style={styles.muted}>Tap the + button to create a prescription</Text>
+          </GlassCard>
         ) : (
-          prescriptions.map((prescription) => (
-            <TouchableOpacity
-              key={prescription.id}
-              style={styles.prescriptionCard}
-              onPress={() =>
-                router.push({
-                  pathname: "/(tabs)/prescriptions/[id]",
-                  params: { id: prescription.id },
-                })
-              }
-            >
-              <View style={styles.prescriptionHeader}>
-                <View style={styles.prescriptionTitleContainer}>
-                  <Text style={styles.prescriptionTitle}>
-                    {prescription.title}
-                  </Text>
-                  <Text style={styles.prescriptionDate}>
-                    {formatDate(prescription.createdAt)}
-                  </Text>
-                  {prescription.createdByRole === "doctor" && prescription.doctorName && (
-                    <Text style={styles.prescriptionDoctor}>
-                      Dr. {prescription.doctorName}
-                    </Text>
-                  )}
-                  {prescription.createdByRole === "patient" && (
-                    <Text style={styles.prescriptionPatient}>
-                      Patient: {prescription.patientName}
-                    </Text>
-                  )}
+          prescriptions.map((rx) => (
+            <Pressable key={rx.id} onPress={() => router.push({ pathname: "/(tabs)/prescriptions/[id]", params: { id: rx.id } })}>
+              <GlassCard style={styles.block} padding={spacing.lg}>
+                <View style={styles.rxHeader}>
+                  <View style={{ flex: 1, marginRight: spacing.md }}>
+                    <Text style={styles.rxTitle}>{rx.title}</Text>
+                    <Text style={styles.muted}>{formatDate(rx.createdAt)}</Text>
+                    {rx.createdByRole === "doctor" && rx.doctorName && <Text style={[styles.tag, { color: accents.emerald }]}>Dr. {rx.doctorName}</Text>}
+                    {rx.createdByRole === "patient" && <Text style={[styles.tag, { color: accents.sky }]}>Patient: {rx.patientName}</Text>}
+                  </View>
+                  <Pressable onPress={() => handleDelete(rx.id, rx.title)} hitSlop={10}>
+                    <Ionicons name="trash-outline" size={22} color={accents.rose} />
+                  </Pressable>
                 </View>
-                <TouchableOpacity
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleDelete(prescription.id, prescription.title);
-                  }}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Ionicons name="trash-outline" size={24} color="#f44336" />
-                </TouchableOpacity>
-              </View>
-
-              {prescription.diagnosis && (
-                <Text style={styles.prescriptionDiagnosis}>
-                  Diagnosis: {prescription.diagnosis}
-                </Text>
-              )}
-
-              {prescription.medications && prescription.medications.length > 0 && (
-                <View style={styles.medicationsContainer}>
-                  <Text style={styles.medicationsLabel}>Medications:</Text>
-                  {prescription.medications.slice(0, 3).map((med, index) => (
-                    <Text key={index} style={styles.medicationItem}>
-                      • {med.name}
-                      {med.dosage && ` - ${med.dosage}`}
-                      {med.frequency && ` (${med.frequency})`}
-                    </Text>
-                  ))}
-                  {prescription.medications.length > 3 && (
-                    <Text style={styles.moreMedications}>
-                      +{prescription.medications.length - 3} more
-                    </Text>
-                  )}
-                </View>
-              )}
-
-              {prescription.notes && (
-                <Text style={styles.prescriptionNotes} numberOfLines={2}>
-                  {prescription.notes}
-                </Text>
-              )}
-            </TouchableOpacity>
+                {rx.diagnosis && <Text style={styles.diagnosis}>Diagnosis: {rx.diagnosis}</Text>}
+                {rx.medications && rx.medications.length > 0 && (
+                  <View style={{ marginTop: spacing.sm }}>
+                    <Text style={styles.medLabel}>Medications</Text>
+                    {rx.medications.slice(0, 3).map((med, i) => (
+                      <Text key={i} style={styles.medItem}>• {med.name}{med.dosage && ` - ${med.dosage}`}{med.frequency && ` (${med.frequency})`}</Text>
+                    ))}
+                    {rx.medications.length > 3 && <Text style={styles.moreMed}>+{rx.medications.length - 3} more</Text>}
+                  </View>
+                )}
+                {rx.notes && <Text style={styles.notes} numberOfLines={2}>{rx.notes}</Text>}
+              </GlassCard>
+            </Pressable>
           ))
         )}
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 }
 
-// Main component that shows different screens based on role
 export default function PrescriptionsScreen() {
   const { theme } = useTheme();
   const styles = createStyles(theme);
   const { userRole, isLoading: authLoading } = useAuth();
 
-  // Show loading while role is being determined
   if (authLoading || !userRole) {
     return (
-      <View style={styles.container}>
-        <LinearGradient colors={["#4CAF50", "#2E7D32"]} style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Loading...</Text>
-          </View>
-        </LinearGradient>
-        <View style={styles.emptyState}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.emptyText}>Loading your profile...</Text>
+      <ScreenBackground>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.muted}>Loading your profile…</Text>
         </View>
-      </View>
+      </ScreenBackground>
     );
   }
 
-  if (userRole === "patient") {
-    return <MyDoctorScreen />;
-  }
-
-  return <PrescriptionsListScreen />;
+  return userRole === "patient" ? <MyDoctorScreen /> : <PrescriptionsListScreen />;
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "white",
-    flex: 1,
-    textAlign: "center",
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pendingButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  pendingBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    backgroundColor: "#f44336",
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 4,
-  },
-  pendingBadgeText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-  },
-  searchCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  searchTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: theme.colors.text,
-    marginBottom: 15,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: theme.colors.surface,
-  },
-  searchButton: {
-    backgroundColor: "#4CAF50",
-    borderRadius: 12,
-    width: 50,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  searchButtonDisabled: {
-    opacity: 0.6,
-  },
-  searchHint: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-    marginTop: 10,
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: theme.colors.text,
-    marginBottom: 15,
-  },
-  doctorCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 15,
-    padding: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 3,
-  },
-  doctorIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#E8F5E9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
-  },
-  doctorInfo: {
-    flex: 1,
-  },
-  doctorName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  doctorSpecialty: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginBottom: 2,
-  },
-  doctorClinic: {
-    fontSize: 12,
-    color: "#888",
-    marginBottom: 2,
-  },
-  doctorEmail: {
-    fontSize: 12,
-    color: "#4CAF50",
-  },
-  pendingStatus: {
-    fontSize: 12,
-    color: "#FF9800",
-    fontStyle: "italic",
-    marginTop: 4,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: theme.colors.textSecondary,
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: theme.colors.textTertiary,
-    marginTop: 8,
-    textAlign: "center",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginTop: 16,
-  },
-  prescriptionCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 3,
-  },
-  prescriptionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  prescriptionTitleContainer: {
-    flex: 1,
-    marginRight: 10,
-  },
-  prescriptionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  prescriptionDate: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  prescriptionDoctor: {
-    fontSize: 13,
-    color: "#4CAF50",
-    marginTop: 4,
-  },
-  prescriptionPatient: {
-    fontSize: 13,
-    color: "#2196F3",
-    marginTop: 4,
-  },
-  prescriptionDiagnosis: {
-    fontSize: 14,
-    color: "#555",
-    marginBottom: 8,
-    fontStyle: "italic",
-  },
-  medicationsContainer: {
-    marginTop: 8,
-  },
-  medicationsLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#555",
-    marginBottom: 4,
-  },
-  medicationItem: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginLeft: 8,
-    marginBottom: 2,
-  },
-  moreMedications: {
-    fontSize: 12,
-    color: theme.colors.textTertiary,
-    fontStyle: "italic",
-    marginLeft: 8,
-    marginTop: 4,
-  },
-  prescriptionNotes: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginTop: 8,
-    fontStyle: "italic",
-  },
-  // Appointment styles
-  appointmentCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  appointmentIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#F0FDFA",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  appointmentInfo: {
-    flex: 1,
-  },
-  appointmentDoctor: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1E293B",
-    marginBottom: 2,
-  },
-  appointmentDate: {
-    fontSize: 13,
-    color: "#64748B",
-    marginBottom: 2,
-  },
-  appointmentReason: {
-    fontSize: 12,
-    color: "#94A3B8",
-    marginBottom: 6,
-  },
-  statusPill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  bookButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#0D9488",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#0D9488",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  // Modal styles
-  modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    zIndex: 1000,
-  },
-  modalContent: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 24,
-    padding: 24,
-    width: "100%",
-    maxWidth: 400,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1E293B",
-  },
-  modalDoctorName: {
-    fontSize: 14,
-    color: "#64748B",
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: "#F8FAFC",
-  },
-  modalBookButton: {
-    backgroundColor: "#0D9488",
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 24,
-    shadowColor: "#0D9488",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  modalBookButtonDisabled: {
-    opacity: 0.6,
-  },
-  modalBookButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-});
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    title: { ...typography.title, color: theme.colors.text },
+    center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md, paddingVertical: spacing.xxxl },
+    muted: { ...typography.caption, color: theme.colors.textSecondary, textAlign: "center" },
+    scroll: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
+    block: { marginBottom: spacing.lg },
+    cardTitle: { ...typography.h1, color: theme.colors.text, marginBottom: spacing.md },
+    searchRow: { flexDirection: "row", gap: spacing.md, alignItems: "stretch" },
+    searchBtn: { width: 52, borderRadius: R.md, backgroundColor: accents.teal, alignItems: "center", justifyContent: "center" },
+    hint: { ...typography.caption, color: theme.colors.textSecondary, marginTop: spacing.md },
+    pendingBtn: { position: "relative" },
+    pendingBadge: { position: "absolute", top: -2, right: -2, backgroundColor: accents.rose, borderRadius: 10, minWidth: 20, height: 20, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+    pendingBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+    sectionTitle: { ...typography.h1, color: theme.colors.text, marginBottom: spacing.md, marginTop: spacing.xs },
+    rowCard: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md },
+    iconChip: { width: 52, height: 52, borderRadius: 26, backgroundColor: withAlpha(accents.teal, 0.14), alignItems: "center", justifyContent: "center" },
+    rowTitle: { ...typography.h2, color: theme.colors.text },
+    pendingText: { ...typography.caption, color: accents.amber, fontStyle: "italic", marginTop: 2 },
+    emailText: { ...typography.caption, color: accents.teal, marginTop: 2 },
+    statusPill: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: R.pill, marginTop: spacing.xs },
+    statusPillText: { fontSize: 11, fontWeight: "700" },
+    bookBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: accents.teal, alignItems: "center", justifyContent: "center" },
+    empty: { alignItems: "center", gap: spacing.sm },
+    emptyText: { ...typography.h2, color: theme.colors.textSecondary },
+    rxHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: spacing.sm },
+    rxTitle: { ...typography.h2, color: theme.colors.text },
+    tag: { ...typography.caption, fontWeight: "600", marginTop: spacing.xs },
+    diagnosis: { ...typography.caption, color: theme.colors.textSecondary, fontStyle: "italic", marginBottom: spacing.sm },
+    medLabel: { ...typography.label, color: theme.colors.textSecondary, marginBottom: spacing.xs },
+    medItem: { ...typography.caption, color: theme.colors.textSecondary, marginLeft: spacing.sm, marginBottom: 2 },
+    moreMed: { ...typography.caption, color: theme.colors.textTertiary, fontStyle: "italic", marginLeft: spacing.sm, marginTop: 2 },
+    notes: { ...typography.caption, color: theme.colors.textSecondary, fontStyle: "italic", marginTop: spacing.sm },
+    label: { ...typography.label, color: theme.colors.textSecondary, marginBottom: spacing.sm, marginTop: spacing.md },
+    f: { marginBottom: spacing.xs },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: spacing.xl },
+    modalCard: {},
+    modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.xs },
+    modalTitle: { ...typography.h1, color: theme.colors.text },
+  });

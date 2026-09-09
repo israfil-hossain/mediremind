@@ -1,15 +1,9 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { GlassCard, GlassIconButton, GlassSurface, ScreenBackground } from "../../components/ui/Glass";
+import { accents, radius as R, spacing, typography, withAlpha } from "../../constants/design";
 import { useTheme } from "../../contexts/ThemeContext";
 import { UserProfile, getUserProfile } from "../../utils/userManagement";
 
@@ -17,292 +11,117 @@ export default function DoctorDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
-  const styles = getStyles(theme);
-
+  const styles = createStyles(theme);
   const [doctor, setDoctor] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (id) {
-      loadDoctor();
+      setLoading(true);
+      getUserProfile(id)
+        .then(setDoctor)
+        .catch((e) => console.error("Error loading doctor:", e))
+        .finally(() => setLoading(false));
     }
   }, [id]);
 
-  const loadDoctor = async () => {
-    try {
-      setLoading(true);
-      const profile = await getUserProfile(id);
-      setDoctor(profile);
-    } catch (error) {
-      console.error("Error loading doctor:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#0D9488" />
-      </View>
+      <ScreenBackground>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </ScreenBackground>
     );
   }
 
   if (!doctor) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <Ionicons name="alert-circle-outline" size={48} color={theme.colors.textSecondary} />
-        <Text style={styles.emptyTitle}>Doctor not found</Text>
-      </View>
+      <ScreenBackground>
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={44} color={theme.colors.textSecondary} />
+          <Text style={styles.emptyTitle}>Doctor not found</Text>
+        </View>
+      </ScreenBackground>
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient colors={["#0D9488", "#134E4A"]} style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Doctor Details</Text>
-          <View style={{ width: 40 }} />
-        </View>
-      </LinearGradient>
+  const dp = doctor.doctorProfile;
+  const info: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string | string[] }[] = [];
+  if (dp?.licenseNumber) info.push({ icon: "card-outline", label: "License Number", value: dp.licenseNumber });
+  if (dp?.qualifications?.length) info.push({ icon: "school-outline", label: "Qualifications", value: dp.qualifications });
+  if (dp?.yearsOfExperience !== undefined) info.push({ icon: "time-outline", label: "Experience", value: `${dp.yearsOfExperience} years` });
+  if (dp?.clinicName) info.push({ icon: "business-outline", label: "Clinic", value: [dp.clinicName, dp.clinicAddress].filter(Boolean) as string[] });
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Doctor Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}>
+  return (
+    <ScreenBackground>
+      <View style={styles.header}>
+        <GlassIconButton icon="arrow-back" onPress={() => router.back()} />
+        <Text style={styles.title}>Doctor Details</Text>
+        <View style={{ width: 44 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <GlassCard style={styles.profileCard} padding={spacing.xl}>
+          <GlassSurface radius={R.pill} style={styles.avatar}>
             <Text style={styles.avatarText}>{(doctor.name || "D")[0].toUpperCase()}</Text>
-          </View>
+          </GlassSurface>
           <Text style={styles.name}>Dr. {doctor.name}</Text>
-          {doctor.doctorProfile?.specialty && (
+          {dp?.specialty && (
             <View style={styles.specialtyBadge}>
-              <Ionicons name="medical" size={12} color="white" />
-              <Text style={styles.specialtyText}>{doctor.doctorProfile.specialty}</Text>
+              <Ionicons name="medical" size={12} color="#fff" />
+              <Text style={styles.specialtyText}>{dp.specialty}</Text>
             </View>
           )}
-          <Text style={styles.email}>{doctor.email}</Text>
-          <Text style={styles.phone}>{doctor.phone}</Text>
-        </View>
+          <Text style={styles.muted}>{doctor.email}</Text>
+          <Text style={styles.muted}>{doctor.phone}</Text>
+        </GlassCard>
 
-        {/* Professional Info */}
-        {doctor.doctorProfile && (
-          <View style={styles.infoSection}>
+        {info.length > 0 && (
+          <>
             <Text style={styles.sectionTitle}>Professional Information</Text>
-
-            {doctor.doctorProfile.licenseNumber && (
-              <View style={styles.infoCard}>
-                <Ionicons name="card-outline" size={20} color="#0D9488" />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>License Number</Text>
-                  <Text style={styles.infoValue}>{doctor.doctorProfile.licenseNumber}</Text>
+            {info.map((item) => (
+              <GlassCard key={item.label} style={styles.infoCard} padding={spacing.lg}>
+                <View style={styles.infoIcon}>
+                  <Ionicons name={item.icon} size={20} color={accents.teal} />
                 </View>
-              </View>
-            )}
-
-            {doctor.doctorProfile.qualifications && doctor.doctorProfile.qualifications.length > 0 && (
-              <View style={styles.infoCard}>
-                <Ionicons name="school-outline" size={20} color="#0D9488" />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Qualifications</Text>
-                  {doctor.doctorProfile.qualifications.map((qual, idx) => (
-                    <Text key={idx} style={styles.infoValue}>• {qual}</Text>
-                  ))}
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={styles.infoLabel}>{item.label}</Text>
+                  {Array.isArray(item.value) ? item.value.map((v, i) => <Text key={i} style={styles.infoValue}>{item.label === "Qualifications" ? `• ${v}` : v}</Text>) : <Text style={styles.infoValue}>{item.value}</Text>}
                 </View>
-              </View>
-            )}
-
-            {doctor.doctorProfile.yearsOfExperience !== undefined && (
-              <View style={styles.infoCard}>
-                <Ionicons name="time-outline" size={20} color="#0D9488" />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Experience</Text>
-                  <Text style={styles.infoValue}>{doctor.doctorProfile.yearsOfExperience} years</Text>
-                </View>
-              </View>
-            )}
-
-            {doctor.doctorProfile.clinicName && (
-              <View style={styles.infoCard}>
-                <Ionicons name="business-outline" size={20} color="#0D9488" />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Clinic</Text>
-                  <Text style={styles.infoValue}>{doctor.doctorProfile.clinicName}</Text>
-                  {doctor.doctorProfile.clinicAddress && (
-                    <Text style={styles.infoValue}>{doctor.doctorProfile.clinicAddress}</Text>
-                  )}
-                </View>
-              </View>
-            )}
-          </View>
+              </GlassCard>
+            ))}
+          </>
         )}
 
-        {/* Verification Status */}
-        <View style={styles.verificationCard}>
-          <Ionicons
-            name={doctor.doctorProfile?.isVerified ? "shield-checkmark" : "shield-outline"}
-            size={24}
-            color={doctor.doctorProfile?.isVerified ? "#0D9488" : theme.colors.textTertiary}
-          />
-          <Text style={styles.verificationText}>
-            {doctor.doctorProfile?.isVerified
-              ? "Verified Doctor"
-              : `Verification: ${doctor.doctorProfile?.verificationStatus || "pending"}`}
-          </Text>
-        </View>
+        <GlassCard style={styles.verification} padding={spacing.lg}>
+          <Ionicons name={dp?.isVerified ? "shield-checkmark" : "shield-outline"} size={22} color={dp?.isVerified ? accents.teal : theme.colors.textTertiary} />
+          <Text style={styles.verificationText}>{dp?.isVerified ? "Verified Doctor" : `Verification: ${dp?.verificationStatus || "pending"}`}</Text>
+        </GlassCard>
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 }
 
-const getStyles = (theme: any) =>
+const createStyles = (theme: any) =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    header: {
-      paddingTop: 50,
-      paddingBottom: 20,
-      paddingHorizontal: 20,
-    },
-    headerContent: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: "rgba(255, 255, 255, 0.2)",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    headerTitle: {
-      fontSize: 20,
-      fontWeight: "bold",
-      color: "white",
-      flex: 1,
-      textAlign: "center",
-    },
-    scrollView: {
-      flex: 1,
-    },
-    scrollContent: {
-      padding: 16,
-      paddingBottom: 40,
-    },
-    profileCard: {
-      backgroundColor: theme.colors.card,
-      borderRadius: 20,
-      padding: 20,
-      alignItems: "center",
-      marginBottom: 16,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      elevation: 2,
-    },
-    avatar: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: "#F0FDFA",
-      justifyContent: "center",
-      alignItems: "center",
-      marginBottom: 12,
-    },
-    avatarText: {
-      fontSize: 32,
-      fontWeight: "bold",
-      color: "#0D9488",
-    },
-    name: {
-      fontSize: 22,
-      fontWeight: "bold",
-      color: theme.colors.text,
-      marginBottom: 8,
-    },
-    specialtyBadge: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: "#0D9488",
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 20,
-      marginBottom: 8,
-      gap: 6,
-    },
-    specialtyText: {
-      fontSize: 13,
-      color: "white",
-      fontWeight: "600",
-    },
-    email: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      marginBottom: 2,
-    },
-    phone: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-    },
-    infoSection: {
-      marginBottom: 16,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: theme.colors.text,
-      marginBottom: 12,
-    },
-    infoCard: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      backgroundColor: theme.colors.card,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 10,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.04,
-      shadowRadius: 8,
-      elevation: 2,
-    },
-    infoContent: {
-      flex: 1,
-      marginLeft: 12,
-    },
-    infoLabel: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: theme.colors.textSecondary,
-      marginBottom: 2,
-    },
-    infoValue: {
-      fontSize: 14,
-      color: theme.colors.text,
-    },
-    verificationCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.colors.card,
-      borderRadius: 16,
-      padding: 16,
-      gap: 12,
-    },
-    verificationText: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.colors.text,
-    },
-    emptyTitle: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.colors.text,
-      marginTop: 12,
-    },
+    center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md },
+    emptyTitle: { ...typography.h2, color: theme.colors.text },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    title: { ...typography.h1, color: theme.colors.text },
+    scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
+    profileCard: { alignItems: "center", marginBottom: spacing.lg },
+    avatar: { width: 80, height: 80, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
+    avatarText: { fontSize: 32, fontWeight: "800", color: accents.teal },
+    name: { ...typography.title, color: theme.colors.text, marginBottom: spacing.sm },
+    specialtyBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: accents.teal, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: R.pill, marginBottom: spacing.sm },
+    specialtyText: { fontSize: 13, color: "#fff", fontWeight: "600" },
+    muted: { ...typography.caption, color: theme.colors.textSecondary },
+    sectionTitle: { ...typography.h1, color: theme.colors.text, marginBottom: spacing.md },
+    infoCard: { flexDirection: "row", alignItems: "flex-start", marginBottom: spacing.md },
+    infoIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: withAlpha(accents.teal, 0.14), alignItems: "center", justifyContent: "center" },
+    infoLabel: { ...typography.label, color: theme.colors.textSecondary, marginBottom: 2 },
+    infoValue: { ...typography.body, color: theme.colors.text },
+    verification: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+    verificationText: { ...typography.h2, color: theme.colors.text },
   });

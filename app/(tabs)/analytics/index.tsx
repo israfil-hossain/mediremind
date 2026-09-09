@@ -1,38 +1,31 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import PremiumButton from "../../../components/PremiumButton";
+import PremiumModal from "../../../components/PremiumModal";
+import { GlassCard, GlassIconButton, ScreenBackground } from "../../../components/ui/Glass";
+import { accents, radius as R, spacing, typography, withAlpha } from "../../../constants/design";
+import { Theme, useTheme } from "../../../contexts/ThemeContext";
 import {
-  calculateAdherenceStats,
-  getMedicationAdherenceStats,
-  getWeeklyTrends,
-  getTimeOfDayAnalysis,
-  getInsights,
   AdherenceStats,
   MedicationAdherence,
-  WeeklyStats,
   TimeAnalysis,
+  WeeklyStats,
+  calculateAdherenceStats,
+  getInsights,
+  getMedicationAdherenceStats,
+  getTimeOfDayAnalysis,
+  getWeeklyTrends,
 } from "../../../utils/analytics";
 import { exportReport } from "../../../utils/exportReports";
-import PremiumModal from "../../../components/PremiumModal";
-import PremiumButton from "../../../components/PremiumButton";
-import { useTheme, Theme } from "../../../contexts/ThemeContext";
 
-const { width } = Dimensions.get("window");
+const rateColor = (r: number) => (r >= 90 ? accents.emerald : r >= 70 ? accents.amber : accents.rose);
 
 export default function AnalyticsDashboard() {
   const router = useRouter();
   const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<AdherenceStats | null>(null);
   const [medStats, setMedStats] = useState<MedicationAdherence[]>([]);
@@ -41,7 +34,6 @@ export default function AnalyticsDashboard() {
   const [insights, setInsights] = useState<string[]>([]);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const styles = createStyles(theme);
 
   useEffect(() => {
     loadAnalytics();
@@ -57,14 +49,13 @@ export default function AnalyticsDashboard() {
         getTimeOfDayAnalysis(30),
         getInsights(),
       ]);
-
       setStats(adherence);
       setMedStats(medications);
       setWeeklyTrends(trends);
       setTimeAnalysis(time);
       setInsights(insightsData);
-    } catch (error) {
-      console.error("Error loading analytics:", error);
+    } catch (e) {
+      console.error("Error loading analytics:", e);
       Alert.alert("Error", "Failed to load analytics data");
     } finally {
       setLoading(false);
@@ -77,8 +68,8 @@ export default function AnalyticsDashboard() {
       await exportReport(format);
       setShowExportModal(false);
       Alert.alert("Success", "Report exported successfully!");
-    } catch (error) {
-      console.error("Export error:", error);
+    } catch (e) {
+      console.error("Export error:", e);
       Alert.alert("Error", "Failed to export report");
     } finally {
       setExporting(false);
@@ -87,457 +78,148 @@ export default function AnalyticsDashboard() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Loading analytics...</Text>
-      </View>
+      <ScreenBackground>
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading analytics…</Text>
+        </View>
+      </ScreenBackground>
     );
   }
 
+  const overall = [
+    { icon: "checkmark-circle" as const, value: `${stats?.adherenceRate ?? 0}%`, label: "Adherence Rate", color: accents.emerald },
+    { icon: "calendar" as const, value: stats?.totalDoses ?? 0, label: "Total Doses", color: accents.sky },
+    { icon: "flame" as const, value: stats?.currentStreak ?? 0, label: "Current Streak", color: accents.amber },
+    { icon: "trophy" as const, value: stats?.longestStreak ?? 0, label: "Longest Streak", color: accents.violet },
+  ];
+
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={[theme.colors.primary, theme.colors.primaryDark]}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Analytics</Text>
-          <TouchableOpacity
-            onPress={() => setShowExportModal(true)}
-            style={styles.exportButton}
-          >
-            <Ionicons name="share-outline" size={24} color="white" />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+    <ScreenBackground>
+      <View style={styles.header}>
+        <GlassIconButton icon="arrow-back" onPress={() => router.back()} />
+        <Text style={styles.title}>Analytics</Text>
+        <GlassIconButton icon="share-outline" onPress={() => setShowExportModal(true)} />
+      </View>
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Overall Stats Cards */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Overall Performance</Text>
-          <View style={styles.statsGrid}>
-            <View style={[styles.statCard, { borderLeftColor: "#4CAF50" }]}>
-              <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
-              <Text style={styles.statValue}>{stats?.adherenceRate}%</Text>
-              <Text style={styles.statLabel}>Adherence Rate</Text>
-            </View>
-            <View style={[styles.statCard, { borderLeftColor: "#2196F3" }]}>
-              <Ionicons name="calendar" size={32} color="#2196F3" />
-              <Text style={styles.statValue}>{stats?.totalDoses}</Text>
-              <Text style={styles.statLabel}>Total Doses</Text>
-            </View>
-          </View>
-          <View style={styles.statsGrid}>
-            <View style={[styles.statCard, { borderLeftColor: "#FF9800" }]}>
-              <Ionicons name="flame" size={32} color="#FF9800" />
-              <Text style={styles.statValue}>{stats?.currentStreak}</Text>
-              <Text style={styles.statLabel}>Current Streak</Text>
-            </View>
-            <View style={[styles.statCard, { borderLeftColor: "#9C27B0" }]}>
-              <Ionicons name="trophy" size={32} color="#9C27B0" />
-              <Text style={styles.statValue}>{stats?.longestStreak}</Text>
-              <Text style={styles.statLabel}>Longest Streak</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Insights */}
-        {insights.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>💡 Insights</Text>
-            {insights.map((insight, index) => (
-              <View key={index} style={styles.insightCard}>
-                <Text style={styles.insightText}>{insight}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Medication Adherence */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Adherence by Medication</Text>
-          {medStats.map((med) => (
-            <View key={med.medicationId} style={styles.medCard}>
-              <View style={styles.medHeader}>
-                <View style={[styles.medDot, { backgroundColor: med.color }]} />
-                <Text style={styles.medName}>{med.medicationName}</Text>
-                <Text
-                  style={[
-                    styles.medRate,
-                    {
-                      color:
-                        med.adherenceRate >= 90
-                          ? "#4CAF50"
-                          : med.adherenceRate >= 70
-                          ? "#FF9800"
-                          : "#F44336",
-                    },
-                  ]}
-                >
-                  {med.adherenceRate}%
-                </Text>
-              </View>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${med.adherenceRate}%`,
-                      backgroundColor:
-                        med.adherenceRate >= 90
-                          ? "#4CAF50"
-                          : med.adherenceRate >= 70
-                          ? "#FF9800"
-                          : "#F44336",
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.medStats}>
-                {med.takenDoses} of {med.totalDoses} doses taken
-              </Text>
-            </View>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <Text style={styles.sectionTitle}>Overall performance</Text>
+        <View style={styles.grid}>
+          {overall.map((s) => (
+            <GlassCard key={s.label} style={styles.statCard} padding={spacing.lg}>
+              <Ionicons name={s.icon} size={28} color={s.color} />
+              <Text style={styles.statValue}>{s.value}</Text>
+              <Text style={styles.statLabel}>{s.label}</Text>
+            </GlassCard>
           ))}
         </View>
 
-        {/* Weekly Trends */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Weekly Trends</Text>
-          <View style={styles.chartContainer}>
-            {weeklyTrends.map((week, index) => {
-              const maxRate = Math.max(...weeklyTrends.map((w) => w.adherenceRate));
-              const height = (week.adherenceRate / maxRate) * 120;
-              return (
-                <View key={index} style={styles.chartBar}>
-                  <View
-                    style={[
-                      styles.bar,
-                      {
-                        height: height || 5,
-                        backgroundColor:
-                          week.adherenceRate >= 90
-                            ? "#4CAF50"
-                            : week.adherenceRate >= 70
-                            ? "#FF9800"
-                            : "#F44336",
-                      },
-                    ]}
-                  />
-                  <Text style={styles.chartLabel}>{week.week}</Text>
-                  <Text style={styles.chartValue}>{week.adherenceRate}%</Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Time of Day Analysis */}
-        {timeAnalysis && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Best Time to Take Medications</Text>
-            <View style={styles.timeGrid}>
-              {Object.entries(timeAnalysis).map(([time, count]) => (
-                <View key={time} style={styles.timeCard}>
-                  <Ionicons
-                    name={
-                      time === "morning"
-                        ? "sunny"
-                        : time === "afternoon"
-                        ? "partly-sunny"
-                        : time === "evening"
-                        ? "moon"
-                        : "cloudy-night"
-                    }
-                    size={32}
-                    color={theme.colors.primary}
-                  />
-                  <Text style={styles.timeLabel}>
-                    {time.charAt(0).toUpperCase() + time.slice(1)}
-                  </Text>
-                  <Text style={styles.timeValue}>{count}</Text>
-                  <Text style={styles.timeSubtext}>doses</Text>
-                </View>
-              ))}
-            </View>
-          </View>
+        {insights.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Insights</Text>
+            {insights.map((insight, i) => (
+              <GlassCard key={i} style={styles.insight} padding={spacing.lg}>
+                <View style={styles.insightAccent} />
+                <Text style={styles.insightText}>{insight}</Text>
+              </GlassCard>
+            ))}
+          </>
         )}
 
-        {/* Action Buttons */}
-        <View style={styles.section}>
-          <PremiumButton
-            title="Export Full Report"
-            onPress={() => setShowExportModal(true)}
-            variant="primary"
-            icon="download"
-            fullWidth
-          />
-        </View>
+        <Text style={styles.sectionTitle}>Adherence by medication</Text>
+        {medStats.map((med) => (
+          <GlassCard key={med.medicationId} style={styles.block} padding={spacing.lg}>
+            <View style={styles.medHeader}>
+              <View style={[styles.medDot, { backgroundColor: med.color }]} />
+              <Text style={styles.medName}>{med.medicationName}</Text>
+              <Text style={[styles.medRate, { color: rateColor(med.adherenceRate) }]}>{med.adherenceRate}%</Text>
+            </View>
+            <View style={styles.track}>
+              <View style={[styles.fill, { width: `${med.adherenceRate}%`, backgroundColor: rateColor(med.adherenceRate) }]} />
+            </View>
+            <Text style={styles.medMeta}>
+              {med.takenDoses} of {med.totalDoses} doses taken
+            </Text>
+          </GlassCard>
+        ))}
 
-        <View style={{ height: 40 }} />
+        <Text style={styles.sectionTitle}>Weekly trends</Text>
+        <GlassCard style={styles.chart} padding={spacing.lg}>
+          {weeklyTrends.map((week, i) => {
+            const maxRate = Math.max(...weeklyTrends.map((w) => w.adherenceRate), 1);
+            const h = (week.adherenceRate / maxRate) * 120;
+            return (
+              <View key={i} style={styles.chartBar}>
+                <Text style={styles.chartValue}>{week.adherenceRate}%</Text>
+                <View style={[styles.bar, { height: h || 5, backgroundColor: rateColor(week.adherenceRate) }]} />
+                <Text style={styles.chartLabel}>{week.week}</Text>
+              </View>
+            );
+          })}
+        </GlassCard>
+
+        {timeAnalysis && (
+          <>
+            <Text style={styles.sectionTitle}>Best time to take medications</Text>
+            <View style={styles.grid}>
+              {Object.entries(timeAnalysis).map(([time, count]) => (
+                <GlassCard key={time} style={styles.statCard} padding={spacing.lg}>
+                  <Ionicons
+                    name={time === "morning" ? "sunny" : time === "afternoon" ? "partly-sunny" : time === "evening" ? "moon" : "cloudy-night"}
+                    size={28}
+                    color={accents.emerald}
+                  />
+                  <Text style={styles.statValue}>{count as number}</Text>
+                  <Text style={styles.statLabel}>{time.charAt(0).toUpperCase() + time.slice(1)}</Text>
+                </GlassCard>
+              ))}
+            </View>
+          </>
+        )}
+
+        <View style={{ marginTop: spacing.lg }}>
+          <PremiumButton title="Export Full Report" onPress={() => setShowExportModal(true)} variant="primary" icon="download" fullWidth />
+        </View>
+        <View style={{ height: spacing.xxxl }} />
       </ScrollView>
 
-      {/* Export Modal */}
-      <PremiumModal
-        visible={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        title="Export Report"
-        subtitle="Choose a format to export"
-        headerIcon="document-text"
-        size="small"
-      >
-        <View style={{ gap: 12 }}>
-          <PremiumButton
-            title="Export as HTML"
-            onPress={() => handleExport("html")}
-            variant="outline"
-            icon="document"
-            iconPosition="left"
-            fullWidth
-            loading={exporting}
-          />
-          <PremiumButton
-            title="Export as CSV"
-            onPress={() => handleExport("csv")}
-            variant="outline"
-            icon="grid"
-            iconPosition="left"
-            fullWidth
-            loading={exporting}
-          />
-          <PremiumButton
-            title="Export as JSON"
-            onPress={() => handleExport("json")}
-            variant="outline"
-            icon="code"
-            iconPosition="left"
-            fullWidth
-            loading={exporting}
-          />
+      <PremiumModal visible={showExportModal} onClose={() => setShowExportModal(false)} title="Export Report" subtitle="Choose a format to export" headerIcon="document-text" size="small">
+        <View style={{ gap: spacing.md }}>
+          <PremiumButton title="Export as HTML" onPress={() => handleExport("html")} variant="outline" icon="document" iconPosition="left" fullWidth loading={exporting} />
+          <PremiumButton title="Export as CSV" onPress={() => handleExport("csv")} variant="outline" icon="grid" iconPosition="left" fullWidth loading={exporting} />
+          <PremiumButton title="Export as JSON" onPress={() => handleExport("json")} variant="outline" icon="code" iconPosition="left" fullWidth loading={exporting} />
         </View>
       </PremiumModal>
-    </View>
+    </ScreenBackground>
   );
 }
 
-const createStyles = (theme: Theme) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: theme.colors.background,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "white",
-  },
-  exportButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  content: {
-    flex: 1,
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginBottom: 16,
-  },
-  statsGrid: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: theme.colors.card,
-    borderRadius: 16,
-    padding: 20,
-    alignItems: "center",
-    borderLeftWidth: 4,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: theme.colors.textTertiary,
-    marginTop: 4,
-    textAlign: "center",
-  },
-  insightCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#4CAF50",
-  },
-  insightText: {
-    fontSize: 15,
-    color: theme.colors.text,
-    lineHeight: 22,
-  },
-  medCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  medHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  medDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  medName: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "600",
-    color: theme.colors.text,
-  },
-  medRate: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: theme.colors.borderLight,
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  medStats: {
-    fontSize: 13,
-    color: theme.colors.textTertiary,
-  },
-  chartContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "flex-end",
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 20,
-    height: 200,
-  },
-  chartBar: {
-    alignItems: "center",
-    flex: 1,
-  },
-  bar: {
-    width: 40,
-    borderRadius: 8,
-    backgroundColor: "#4CAF50",
-  },
-  chartLabel: {
-    fontSize: 12,
-    color: theme.colors.textTertiary,
-    marginTop: 8,
-  },
-  chartValue: {
-    fontSize: 11,
-    color: theme.colors.textSecondary,
-    fontWeight: "600",
-    marginTop: 4,
-  },
-  timeGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  timeCard: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: theme.colors.card,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: "center",
-    shadowColor: theme.colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  timeLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: theme.colors.text,
-    marginTop: 8,
-  },
-  timeValue: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: theme.colors.primary,
-    marginTop: 4,
-  },
-  timeSubtext: {
-    fontSize: 12,
-    color: theme.colors.textTertiary,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    loading: { flex: 1, justifyContent: "center", alignItems: "center" },
+    loadingText: { marginTop: spacing.lg, ...typography.body, color: theme.colors.textSecondary },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    title: { ...typography.h1, color: theme.colors.text },
+    scroll: { paddingHorizontal: spacing.xl, paddingBottom: 120 },
+    sectionTitle: { ...typography.h1, color: theme.colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
+    grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+    statCard: { width: "47.5%", alignItems: "center" },
+    statValue: { fontSize: 26, fontWeight: "800", color: theme.colors.text, marginTop: spacing.sm },
+    statLabel: { ...typography.caption, color: theme.colors.textTertiary, marginTop: 2, textAlign: "center" },
+    insight: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md },
+    insightAccent: { width: 4, alignSelf: "stretch", borderRadius: 2, backgroundColor: accents.emerald, marginRight: spacing.md },
+    insightText: { flex: 1, ...typography.body, color: theme.colors.text, lineHeight: 21 },
+    block: { marginBottom: spacing.md },
+    medHeader: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md },
+    medDot: { width: 12, height: 12, borderRadius: 6, marginRight: spacing.md },
+    medName: { flex: 1, ...typography.h2, color: theme.colors.text },
+    medRate: { fontSize: 18, fontWeight: "800" },
+    track: { height: 8, backgroundColor: withAlpha(theme.colors.text, 0.08), borderRadius: 4, overflow: "hidden", marginBottom: spacing.sm },
+    fill: { height: "100%", borderRadius: 4 },
+    medMeta: { ...typography.caption, color: theme.colors.textTertiary },
+    chart: { flexDirection: "row", justifyContent: "space-around", alignItems: "flex-end", height: 200, marginBottom: spacing.md },
+    chartBar: { alignItems: "center", flex: 1 },
+    bar: { width: 38, borderRadius: 8, marginVertical: spacing.sm },
+    chartLabel: { ...typography.caption, color: theme.colors.textTertiary },
+    chartValue: { fontSize: 11, color: theme.colors.textSecondary, fontWeight: "700" },
+  });

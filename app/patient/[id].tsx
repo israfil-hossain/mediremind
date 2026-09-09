@@ -1,365 +1,163 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { GlassCard, GlassIconButton, GlassSurface, ScreenBackground } from "../../components/ui/Glass";
+import { accents, radius as R, spacing, typography, withAlpha } from "../../constants/design";
 import { useTheme } from "../../contexts/ThemeContext";
+import { SharedPrescription, getUserPrescriptions } from "../../utils/prescriptionManager";
 import { UserProfile, getUserProfile } from "../../utils/userManagement";
-import { getUserPrescriptions, SharedPrescription } from "../../utils/prescriptionManager";
+
+const statusColor = (status: string) => (status === "approved" ? accents.emerald : status === "rejected" ? accents.rose : accents.amber);
 
 export default function PatientDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { theme } = useTheme();
-  const styles = getStyles(theme);
-
+  const styles = createStyles(theme);
   const [patient, setPatient] = useState<UserProfile | null>(null);
   const [prescriptions, setPrescriptions] = useState<SharedPrescription[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (id) {
-      loadPatientData();
+      setLoading(true);
+      Promise.all([getUserProfile(id), getUserPrescriptions(id, "patient")])
+        .then(([profile, rx]) => {
+          setPatient(profile);
+          setPrescriptions(rx);
+        })
+        .catch((e) => console.error("Error loading patient data:", e))
+        .finally(() => setLoading(false));
     }
   }, [id]);
 
-  const loadPatientData = async () => {
-    try {
-      setLoading(true);
-      const [profile, patientPrescriptions] = await Promise.all([
-        getUserProfile(id),
-        getUserPrescriptions(id, "patient"),
-      ]);
-      setPatient(profile);
-      setPrescriptions(patientPrescriptions);
-    } catch (error) {
-      console.error("Error loading patient data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#0D9488" />
-      </View>
+      <ScreenBackground>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </ScreenBackground>
     );
   }
 
   if (!patient) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <Ionicons name="alert-circle-outline" size={48} color={theme.colors.textSecondary} />
-        <Text style={styles.emptyTitle}>Patient not found</Text>
-      </View>
+      <ScreenBackground>
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={44} color={theme.colors.textSecondary} />
+          <Text style={styles.emptyTitle}>Patient not found</Text>
+        </View>
+      </ScreenBackground>
     );
   }
 
+  const pp = patient.patientProfile;
+  const details: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }[] = [];
+  if (pp?.dateOfBirth) details.push({ icon: "calendar-outline", label: "DOB", value: pp.dateOfBirth });
+  if (pp?.gender) details.push({ icon: "male-female-outline", label: "Gender", value: pp.gender.charAt(0).toUpperCase() + pp.gender.slice(1) });
+  if (pp?.bloodGroup) details.push({ icon: "water-outline", label: "Blood", value: pp.bloodGroup });
+
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={["#0D9488", "#134E4A"]} style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Patient Details</Text>
-          <View style={{ width: 40 }} />
-        </View>
-      </LinearGradient>
+    <ScreenBackground>
+      <View style={styles.header}>
+        <GlassIconButton icon="arrow-back" onPress={() => router.back()} />
+        <Text style={styles.title}>Patient Details</Text>
+        <View style={{ width: 44 }} />
+      </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Patient Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <GlassCard style={styles.profileCard} padding={spacing.xl}>
+          <GlassSurface radius={R.pill} style={styles.avatar}>
             <Text style={styles.avatarText}>{(patient.name || "P")[0].toUpperCase()}</Text>
-          </View>
+          </GlassSurface>
           <Text style={styles.name}>{patient.name}</Text>
-          <Text style={styles.email}>{patient.email}</Text>
-          <Text style={styles.phone}>{patient.phone}</Text>
-
-          {patient.patientProfile && (
+          <Text style={styles.muted}>{patient.email}</Text>
+          <Text style={styles.muted}>{patient.phone}</Text>
+          {details.length > 0 && (
             <View style={styles.detailsGrid}>
-              {patient.patientProfile.dateOfBirth && (
-                <View style={styles.detailItem}>
-                  <Ionicons name="calendar-outline" size={16} color="#0D9488" />
-                  <Text style={styles.detailLabel}>DOB</Text>
-                  <Text style={styles.detailValue}>{patient.patientProfile.dateOfBirth}</Text>
+              {details.map((d) => (
+                <View key={d.label} style={styles.detailItem}>
+                  <Ionicons name={d.icon} size={16} color={accents.teal} />
+                  <Text style={styles.detailLabel}>{d.label}</Text>
+                  <Text style={styles.detailValue}>{d.value}</Text>
                 </View>
-              )}
-              {patient.patientProfile.gender && (
-                <View style={styles.detailItem}>
-                  <Ionicons name="male-female-outline" size={16} color="#0D9488" />
-                  <Text style={styles.detailLabel}>Gender</Text>
-                  <Text style={styles.detailValue}>
-                    {patient.patientProfile.gender.charAt(0).toUpperCase() +
-                      patient.patientProfile.gender.slice(1)}
-                  </Text>
-                </View>
-              )}
-              {patient.patientProfile.bloodGroup && (
-                <View style={styles.detailItem}>
-                  <Ionicons name="water-outline" size={16} color="#0D9488" />
-                  <Text style={styles.detailLabel}>Blood</Text>
-                  <Text style={styles.detailValue}>{patient.patientProfile.bloodGroup}</Text>
-                </View>
-              )}
+              ))}
             </View>
           )}
-        </View>
+        </GlassCard>
 
-        {/* Address */}
-        {patient.patientProfile?.address && (
-          <View style={styles.infoCard}>
-            <Ionicons name="location-outline" size={20} color="#0D9488" />
-            <View style={styles.infoContent}>
+        {pp?.address && (
+          <GlassCard style={styles.infoCard} padding={spacing.lg}>
+            <Ionicons name="location-outline" size={20} color={accents.teal} />
+            <View style={{ flex: 1, marginLeft: spacing.md }}>
               <Text style={styles.infoLabel}>Address</Text>
-              <Text style={styles.infoValue}>{patient.patientProfile.address}</Text>
+              <Text style={styles.infoValue}>{pp.address}</Text>
             </View>
-          </View>
+          </GlassCard>
         )}
 
-        {/* Emergency Contact */}
-        {patient.patientProfile?.emergencyContact && (
-          <View style={styles.infoCard}>
-            <Ionicons name="call-outline" size={20} color="#EF4444" />
-            <View style={styles.infoContent}>
+        {pp?.emergencyContact && (
+          <GlassCard style={styles.infoCard} padding={spacing.lg}>
+            <Ionicons name="call-outline" size={20} color={accents.rose} />
+            <View style={{ flex: 1, marginLeft: spacing.md }}>
               <Text style={styles.infoLabel}>Emergency Contact</Text>
-              <Text style={styles.infoValue}>{patient.patientProfile.emergencyContact}</Text>
-              {patient.patientProfile.emergencyPhone && (
-                <Text style={styles.infoValue}>{patient.patientProfile.emergencyPhone}</Text>
-              )}
+              <Text style={styles.infoValue}>{pp.emergencyContact}</Text>
+              {pp.emergencyPhone && <Text style={styles.infoValue}>{pp.emergencyPhone}</Text>}
             </View>
-          </View>
+          </GlassCard>
         )}
 
-        {/* Prescriptions */}
         <Text style={styles.sectionTitle}>Prescriptions</Text>
         {prescriptions.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No prescriptions yet</Text>
-          </View>
+          <GlassCard style={{ alignItems: "center" }} padding={spacing.xxl}>
+            <Text style={styles.muted}>No prescriptions yet</Text>
+          </GlassCard>
         ) : (
-          prescriptions.map((prescription) => (
-            <View key={prescription.id} style={styles.prescriptionCard}>
+          prescriptions.map((rx) => (
+            <GlassCard key={rx.id} style={styles.block} padding={spacing.lg}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={styles.prescriptionTitle}>{prescription.title}</Text>
-                <Text style={[styles.prescriptionStatus, { color: prescription.status === "approved" ? "#22C55E" : prescription.status === "rejected" ? "#EF4444" : "#F59E0B" }]}>
-                  {prescription.status.charAt(0).toUpperCase() + prescription.status.slice(1)}
-                </Text>
+                <Text style={styles.rxTitle}>{rx.title}</Text>
+                <Text style={[styles.rxStatus, { color: statusColor(rx.status) }]}>{rx.status.charAt(0).toUpperCase() + rx.status.slice(1)}</Text>
               </View>
-              {prescription.diagnosis && (
-                <Text style={styles.prescriptionDiagnosis}>{prescription.diagnosis}</Text>
-              )}
-              {prescription.medications.map((med, idx) => (
-                <Text key={idx} style={styles.medicationText}>
+              {rx.diagnosis && <Text style={styles.rxDiagnosis}>{rx.diagnosis}</Text>}
+              {rx.medications.map((med, i) => (
+                <Text key={i} style={styles.medText}>
                   • {med.name} {med.dosage && `- ${med.dosage}`} {med.frequency && `(${med.frequency})`}
                 </Text>
               ))}
-            </View>
+            </GlassCard>
           ))
         )}
       </ScrollView>
-    </View>
+    </ScreenBackground>
   );
 }
 
-const getStyles = (theme: any) =>
+const createStyles = (theme: any) =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    header: {
-      paddingTop: 50,
-      paddingBottom: 20,
-      paddingHorizontal: 20,
-    },
-    headerContent: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: "rgba(255, 255, 255, 0.2)",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    headerTitle: {
-      fontSize: 20,
-      fontWeight: "bold",
-      color: "white",
-      flex: 1,
-      textAlign: "center",
-    },
-    scrollView: {
-      flex: 1,
-    },
-    scrollContent: {
-      padding: 16,
-      paddingBottom: 40,
-    },
-    profileCard: {
-      backgroundColor: theme.colors.card,
-      borderRadius: 20,
-      padding: 20,
-      alignItems: "center",
-      marginBottom: 16,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      elevation: 2,
-    },
-    avatar: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: "#F0FDFA",
-      justifyContent: "center",
-      alignItems: "center",
-      marginBottom: 12,
-    },
-    avatarText: {
-      fontSize: 32,
-      fontWeight: "bold",
-      color: "#0D9488",
-    },
-    name: {
-      fontSize: 22,
-      fontWeight: "bold",
-      color: theme.colors.text,
-      marginBottom: 4,
-    },
-    email: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      marginBottom: 2,
-    },
-    phone: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      marginBottom: 12,
-    },
-    detailsGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "center",
-      gap: 12,
-      marginTop: 8,
-    },
-    detailItem: {
-      alignItems: "center",
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      backgroundColor: theme.colors.surface,
-      borderRadius: 12,
-      minWidth: 80,
-    },
-    detailLabel: {
-      fontSize: 11,
-      color: theme.colors.textTertiary,
-      marginTop: 4,
-    },
-    detailValue: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: theme.colors.text,
-      marginTop: 2,
-    },
-    infoCard: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      backgroundColor: theme.colors.card,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 12,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.04,
-      shadowRadius: 8,
-      elevation: 2,
-    },
-    infoContent: {
-      flex: 1,
-      marginLeft: 12,
-    },
-    infoLabel: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: theme.colors.textSecondary,
-      marginBottom: 2,
-    },
-    infoValue: {
-      fontSize: 14,
-      color: theme.colors.text,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: theme.colors.text,
-      marginTop: 8,
-      marginBottom: 12,
-    },
-    emptyCard: {
-      backgroundColor: theme.colors.card,
-      borderRadius: 16,
-      padding: 24,
-      alignItems: "center",
-    },
-    emptyText: {
-      fontSize: 16,
-      color: theme.colors.textSecondary,
-    },
-    emptyTitle: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: theme.colors.text,
-      marginTop: 12,
-    },
-    prescriptionCard: {
-      backgroundColor: theme.colors.card,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 12,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.04,
-      shadowRadius: 8,
-      elevation: 2,
-    },
-    prescriptionTitle: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: theme.colors.text,
-      marginBottom: 4,
-      flex: 1,
-    },
-    prescriptionStatus: {
-      fontSize: 12,
-      fontWeight: "600",
-      marginLeft: 8,
-    },
-    prescriptionDiagnosis: {
-      fontSize: 13,
-      color: theme.colors.textSecondary,
-      fontStyle: "italic",
-      marginBottom: 8,
-    },
-    medicationText: {
-      fontSize: 13,
-      color: theme.colors.textSecondary,
-      marginLeft: 4,
-      marginBottom: 2,
-    },
+    center: { flex: 1, justifyContent: "center", alignItems: "center", gap: spacing.md },
+    emptyTitle: { ...typography.h2, color: theme.colors.text },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.md },
+    title: { ...typography.h1, color: theme.colors.text },
+    scroll: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl },
+    block: { marginBottom: spacing.md },
+    profileCard: { alignItems: "center", marginBottom: spacing.lg },
+    avatar: { width: 80, height: 80, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
+    avatarText: { fontSize: 32, fontWeight: "800", color: accents.teal },
+    name: { ...typography.title, color: theme.colors.text, marginBottom: spacing.xs },
+    muted: { ...typography.caption, color: theme.colors.textSecondary },
+    detailsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.md, marginTop: spacing.md },
+    detailItem: { alignItems: "center", paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: withAlpha(theme.colors.text, 0.06), borderRadius: R.md, minWidth: 80 },
+    detailLabel: { ...typography.caption, color: theme.colors.textTertiary, marginTop: 4 },
+    detailValue: { ...typography.label, color: theme.colors.text, marginTop: 2 },
+    infoCard: { flexDirection: "row", alignItems: "flex-start", marginBottom: spacing.md },
+    infoLabel: { ...typography.label, color: theme.colors.textSecondary, marginBottom: 2 },
+    infoValue: { ...typography.body, color: theme.colors.text },
+    sectionTitle: { ...typography.h1, color: theme.colors.text, marginTop: spacing.sm, marginBottom: spacing.md },
+    rxTitle: { flex: 1, ...typography.h2, color: theme.colors.text },
+    rxStatus: { fontSize: 12, fontWeight: "700", marginLeft: spacing.sm },
+    rxDiagnosis: { ...typography.caption, color: theme.colors.textSecondary, fontStyle: "italic", marginTop: spacing.xs, marginBottom: spacing.sm },
+    medText: { ...typography.caption, color: theme.colors.textSecondary, marginBottom: 2 },
   });
