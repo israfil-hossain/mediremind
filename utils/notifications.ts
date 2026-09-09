@@ -1,29 +1,41 @@
-import * as Notifications from "expo-notifications";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Platform } from "react-native";
 import { Medication } from "./storage";
 
-const isExpoGo = process.env.EXPO_RUNTIME_VERSION === undefined;
+// expo-notifications' remote-notification features were removed from Expo Go
+// in SDK 53. Importing the module in Expo Go throws, so detect the environment
+// and lazily require it only when running in a development/production build.
+const isExpoGo =
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+let Notifications: typeof import("expo-notifications") | null = null;
 
 if (!isExpoGo) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
+  try {
+    Notifications = require("expo-notifications");
+    Notifications!.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch (e) {
+    console.log("expo-notifications not available in this environment");
+    Notifications = null;
+  }
 }
 
 export function areNotificationsAvailable(): boolean {
-  return !isExpoGo;
+  return Notifications !== null;
 }
 
 export async function registerForPushNotificationsAsync(): Promise<
   string | null
 > {
-  if (isExpoGo) {
+  if (!Notifications) {
     console.log("Push notifications not available in Expo Go");
     return null;
   }
@@ -65,7 +77,7 @@ export async function registerForPushNotificationsAsync(): Promise<
 export async function scheduleMedicationReminder(
   medication: Medication
 ): Promise<string | undefined> {
-  if (isExpoGo) {
+  if (!Notifications) {
     console.log("Notifications not available in Expo Go");
     return undefined;
   }
@@ -109,6 +121,7 @@ export async function scheduleMedicationReminder(
 export async function scheduleRefillReminder(
   medication: Medication
 ): Promise<string | undefined> {
+  if (!Notifications) return undefined;
   if (!medication.refillReminder) return;
 
   try {
@@ -134,6 +147,7 @@ export async function scheduleRefillReminder(
 export async function cancelMedicationReminders(
   medicationId: string
 ): Promise<void> {
+  if (!Notifications) return;
   try {
     const scheduledNotifications =
       await Notifications.getAllScheduledNotificationsAsync();

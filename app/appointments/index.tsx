@@ -1,25 +1,23 @@
-import { useState, useCallback, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import {
-  getDoctorAppointments,
-  updateAppointmentStatus,
-  deleteAppointment,
   Appointment,
+  getDoctorAppointments,
+  updateAppointmentStatus
 } from "../../utils/appointments";
 
 export default function DoctorAppointmentsScreen() {

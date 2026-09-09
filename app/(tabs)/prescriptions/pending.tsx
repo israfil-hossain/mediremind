@@ -1,24 +1,23 @@
-import { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  TextInput,
-  RefreshControl,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useTheme } from "../../../contexts/ThemeContext";
 import {
-  getPendingPrescriptions,
   approvePrescription,
+  getPendingPrescriptions,
   rejectPrescription,
   SharedPrescription,
 } from "../../../utils/prescriptionManager";

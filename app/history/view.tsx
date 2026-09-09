@@ -1,23 +1,22 @@
-import React, { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  Alert,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
-  getDoseHistory,
-  getMedications,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import {
   DoseHistory,
   Medication,
   clearAllData,
+  getDoseHistory,
+  getMedications,
 } from "../../utils/storage";
 import { getHistoryLimitDays, isPremium } from "../../utils/subscription";
 

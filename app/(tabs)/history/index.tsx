@@ -1,35 +1,34 @@
-import React, { useState, useCallback, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  Alert,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
-  getDoseHistory,
-  getMedications,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import AdBanner from "../../../components/AdBanner";
+import MyPatientsScreen from "../../../components/MyPatientsScreen";
+import { useAuth } from "../../../contexts/AuthContext";
+import { useTheme } from "../../../contexts/ThemeContext";
+import {
+  FamilyProfile,
+  getActiveProfileId,
+  getFamilyProfiles,
+  setActiveProfile,
+} from "../../../utils/familyProfiles";
+import {
   DoseHistory,
   Medication,
   clearAllData,
+  getDoseHistory,
+  getMedications,
 } from "../../../utils/storage";
 import { getHistoryLimitDays, isPremium } from "../../../utils/subscription";
-import {
-  getFamilyProfiles,
-  getActiveProfileId,
-  setActiveProfile,
-  FamilyProfile,
-} from "../../../utils/familyProfiles";
-import { useTheme } from "../../../contexts/ThemeContext";
-import { useAuth } from "../../../contexts/AuthContext";
-import MyPatientsScreen from "../../../components/MyPatientsScreen";
-import AdBanner from "../../../components/AdBanner";
 
 type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
 
