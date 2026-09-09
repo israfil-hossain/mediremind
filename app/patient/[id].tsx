@@ -38,7 +38,7 @@ export default function PatientDetailScreen() {
         getUserPrescriptions(id, "patient"),
       ]);
       setPatient(profile);
-      setPrescriptions(patientPrescriptions.filter((p) => p.status === "approved"));
+      setPrescriptions(patientPrescriptions);
     } catch (error) {
       console.error("Error loading patient data:", error);
     } finally {
@@ -149,7 +149,12 @@ export default function PatientDetailScreen() {
         ) : (
           prescriptions.map((prescription) => (
             <View key={prescription.id} style={styles.prescriptionCard}>
-              <Text style={styles.prescriptionTitle}>{prescription.title}</Text>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={styles.prescriptionTitle}>{prescription.title}</Text>
+                <Text style={[styles.prescriptionStatus, { color: prescription.status === "approved" ? "#22C55E" : prescription.status === "rejected" ? "#EF4444" : "#F59E0B" }]}>
+                  {prescription.status.charAt(0).toUpperCase() + prescription.status.slice(1)}
+                </Text>
+              </View>
               {prescription.diagnosis && (
                 <Text style={styles.prescriptionDiagnosis}>{prescription.diagnosis}</Text>
               )}
@@ -338,6 +343,12 @@ const getStyles = (theme: any) =>
       fontWeight: "700",
       color: theme.colors.text,
       marginBottom: 4,
+      flex: 1,
+    },
+    prescriptionStatus: {
+      fontSize: 12,
+      fontWeight: "600",
+      marginLeft: 8,
     },
     prescriptionDiagnosis: {
       fontSize: 13,

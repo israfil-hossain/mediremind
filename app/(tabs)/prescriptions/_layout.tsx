@@ -9,6 +9,8 @@ export default function PrescriptionsLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="add" />
+      <Stack.Screen name="create" />
+      <Stack.Screen name="pending" />
       <Stack.Screen name="[id]" />
     </Stack>
   );

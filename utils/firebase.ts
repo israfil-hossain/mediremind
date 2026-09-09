@@ -26,6 +26,7 @@ let firebaseAuth: any = null;
 let firestore: any = null;
 let isFirebaseInitialized = false;
 let firebaseAvailable = true; // Track if Firebase native modules are available
+let googleSignInAvailable = false; // Track if Google Sign-In native module is available
 
 export async function initializeFirebase(): Promise<boolean> {
   if (isFirebaseInitialized) return true;
@@ -150,6 +151,10 @@ export function isFirebaseAvailable(): boolean {
   return firebaseAvailable;
 }
 
+export function isGoogleSignInAvailable(): boolean {
+  return googleSignInAvailable;
+}
+
 // Get current Firebase user
 export async function getCurrentUser(): Promise<FirebaseUser | null> {
   try {
@@ -194,7 +199,7 @@ export async function refreshIdToken(): Promise<string | null> {
 
   try {
     const auth = firebaseAuth();
-    const currentUser = auth().currentUser;
+    const currentUser = auth.currentUser;
 
     if (!currentUser) {
       console.log("No current user to refresh token");
@@ -509,16 +514,18 @@ export async function signOut(): Promise<void> {
       await firebaseAuth().signOut();
     }
 
-    try {
-      const { GoogleSignin } = await import(
-        "@react-native-google-signin/google-signin"
-      );
-      if (GoogleSignin && typeof GoogleSignin.signOut === "function") {
-        await GoogleSignin.revokeAccess().catch(() => {});
-        await GoogleSignin.signOut().catch(() => {});
+    if (googleSignInAvailable) {
+      try {
+        const { GoogleSignin } = await import(
+          "@react-native-google-signin/google-signin"
+        );
+        if (GoogleSignin && typeof GoogleSignin.signOut === "function") {
+          await GoogleSignin.revokeAccess().catch(() => {});
+          await GoogleSignin.signOut().catch(() => {});
+        }
+      } catch {
+        // Google Sign-In not available
       }
-    } catch {
-      // Google Sign-In not available
     }
 
     await setCurrentUser(null);
@@ -551,7 +558,7 @@ export async function configureGoogleSignIn(
         "Google Sign-In native module not available. " +
           "Create a development build to use this feature."
       );
-      firebaseAvailable = false;
+      googleSignInAvailable = false;
       return;
     }
 
@@ -569,6 +576,7 @@ export async function configureGoogleSignIn(
       offlineAccess: true,
     });
 
+    googleSignInAvailable = true;
     console.log("Google Sign-In configured successfully");
   } catch (error: any) {
     if (
@@ -579,7 +587,7 @@ export async function configureGoogleSignIn(
       console.warn(
         "Google Sign-In not available in Expo Go. Create a development build."
       );
-      firebaseAvailable = false;
+      googleSignInAvailable = false;
     } else {
       console.error("Google Sign-In configuration error:", error);
     }

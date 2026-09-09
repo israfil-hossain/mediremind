@@ -134,17 +134,21 @@ export async function getDoctorAppointments(doctorId: string): Promise<Appointme
           value: { stringValue: doctorId },
         },
       },
-      orderBy: [
-        { field: { fieldPath: "date" }, direction: "DESCENDING" },
-        { field: { fieldPath: "time" }, direction: "DESCENDING" },
-      ],
     });
 
-    return documents.map((doc: any) => {
+    const appointments = documents.map((doc: any) => {
       const id = doc.name.split("/").pop();
       const data = fromFirestoreDocument(doc);
       return { ...data, id } as Appointment;
     });
+
+    appointments.sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      return b.time.localeCompare(a.time);
+    });
+
+    return appointments;
   } catch (error) {
     console.error("Error getting doctor appointments:", error);
     return [];
@@ -163,17 +167,22 @@ export async function getPatientAppointments(patientId: string): Promise<Appoint
           value: { stringValue: patientId },
         },
       },
-      orderBy: [
-        { field: { fieldPath: "date" }, direction: "DESCENDING" },
-        { field: { fieldPath: "time" }, direction: "DESCENDING" },
-      ],
     });
 
-    return documents.map((doc: any) => {
+    const appointments = documents.map((doc: any) => {
       const id = doc.name.split("/").pop();
       const data = fromFirestoreDocument(doc);
       return { ...data, id } as Appointment;
     });
+
+    // Sort by date desc, then time desc in JS (avoids needing a composite index)
+    appointments.sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      return b.time.localeCompare(a.time);
+    });
+
+    return appointments;
   } catch (error) {
     console.error("Error getting patient appointments:", error);
     return [];
@@ -184,36 +193,8 @@ export async function getPatientAppointments(patientId: string): Promise<Appoint
 export async function getDoctorTodayAppointments(doctorId: string): Promise<Appointment[]> {
   const today = new Date().toISOString().split("T")[0];
   try {
-    const documents = await runQuery({
-      from: [{ collectionId: "appointments" }],
-      where: {
-        compositeFilter: {
-          op: "AND",
-          filters: [
-            {
-              fieldFilter: {
-                field: { fieldPath: "doctorId" },
-                op: "EQUAL",
-                value: { stringValue: doctorId },
-              },
-            },
-            {
-              fieldFilter: {
-                field: { fieldPath: "date" },
-                op: "EQUAL",
-                value: { stringValue: today },
-              },
-            },
-          ],
-        },
-      },
-    });
-
-    return documents.map((doc: any) => {
-      const id = doc.name.split("/").pop();
-      const data = fromFirestoreDocument(doc);
-      return { ...data, id } as Appointment;
-    });
+    const allAppointments = await getDoctorAppointments(doctorId);
+    return allAppointments.filter((apt) => apt.date === today);
   } catch (error) {
     console.error("Error getting today's appointments:", error);
     return [];
