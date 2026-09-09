@@ -16,6 +16,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { accents, blobs, cardShadow, radius as R, spacing, withAlpha } from "../../constants/design";
 import { useTheme } from "../../contexts/ThemeContext";
 
@@ -255,15 +256,21 @@ export function GlassField({ icon, containerStyle, style, ...rest }: GlassFieldP
 interface ScreenBackgroundProps {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
+  // Pad the content down past the status bar / notch. On by default so screen
+  // headers never slide under the safe area; set false when the content already
+  // handles the top inset itself.
+  topInset?: boolean;
 }
 
-export function ScreenBackground({ children, style }: ScreenBackgroundProps) {
+export function ScreenBackground({ children, style, topInset = true }: ScreenBackgroundProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const c = theme.isDark ? blobs.dark : blobs.light;
   const op = theme.isDark ? 0.50 : 0.30;
   return (
-    <View style={[{ flex: 1, backgroundColor: theme.colors.background }, style]}>
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View style={[{ flex: 1, backgroundColor: theme.colors.background }, topInset && { paddingTop: insets.top }, style]}>
+      {/* Keep the blobs full-bleed (behind the status bar too) by offsetting the inset padding. */}
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, topInset && { top: -insets.top }]}>
         <View style={[styles.blob, styles.blobA, { backgroundColor: withAlpha(c[0], op) }]} />
         <View style={[styles.blob, styles.blobB, { backgroundColor: withAlpha(c[1], op) }]} />
         <View style={[styles.blob, styles.blobC, { backgroundColor: withAlpha(c[2], op) }]} />

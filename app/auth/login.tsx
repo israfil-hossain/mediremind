@@ -142,7 +142,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <ScreenBackground>
+    <ScreenBackground topInset={false}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <GlassIconButton icon="arrow-back" onPress={() => router.back()} style={styles.back} />
